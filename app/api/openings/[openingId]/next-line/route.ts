@@ -77,8 +77,41 @@ export async function GET(
 
     console.log(`Found ${rootNodes.length} root nodes`)
 
+    // Build continuation from a node following main line
+    const buildContinuationFromNode = async (nodeId: string): Promise<string[]> => {
+      const continuation: string[] = []
+      let currentNodeId: string | null = nodeId
+
+      while (currentNodeId) {
+        const node = await prisma.moveNode.findUnique({
+          where: { id: currentNodeId },
+          include: {
+            childNodes: {
+              orderBy: {
+                popularityScore: 'desc',
+              },
+              take: 1,
+            },
+          },
+        })
+
+        if (!node || node.childNodes.length === 0) break
+
+        const nextNode = node.childNodes[0]
+        const nextIsLearned = learnedNodeIds.has(nextNode.id)
+
+        // Stop if next node is already learned
+        if (nextIsLearned) break
+
+        continuation.push(nextNode.sanMove)
+        currentNodeId = nextNode.id
+      }
+
+      return continuation
+    }
+
     // Function to traverse tree and find next unlearned line
-    async function findNextUnlearnedLine(startNodeId: string | null, pathFromRoot: string[] = []): Promise<string[] | null> {
+    const findNextUnlearnedLine = async (startNodeId: string | null, pathFromRoot: string[] = []): Promise<string[] | null> => {
       if (!startNodeId) return null
 
       const node = await prisma.moveNode.findUnique({
@@ -111,39 +144,6 @@ export async function GET(
       }
 
       return null
-    }
-
-    // Build continuation from a node following main line
-    async function buildContinuationFromNode(nodeId: string): Promise<string[]> {
-      const continuation: string[] = []
-      let currentNodeId: string | null = nodeId
-
-      while (currentNodeId) {
-        const node = await prisma.moveNode.findUnique({
-          where: { id: currentNodeId },
-          include: {
-            childNodes: {
-              orderBy: {
-                popularityScore: 'desc',
-              },
-              take: 1,
-            },
-          },
-        })
-
-        if (!node || node.childNodes.length === 0) break
-
-        const nextNode = node.childNodes[0]
-        const nextIsLearned = learnedNodeIds.has(nextNode.id)
-
-        // Stop if next node is already learned
-        if (nextIsLearned) break
-
-        continuation.push(nextNode.sanMove)
-        currentNodeId = nextNode.id
-      }
-
-      return continuation
     }
 
     // Try each root node to find next unlearned line
