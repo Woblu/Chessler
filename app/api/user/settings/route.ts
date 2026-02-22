@@ -41,6 +41,13 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      if (!user.password) {
+        return NextResponse.json(
+          { error: 'This account does not use a password (e.g., signed in via Google) or no password is set.' },
+          { status: 400 }
+        )
+      }
+
       // Verify current password
       const isValid = await bcrypt.compare(currentPassword, user.password)
       if (!isValid) {
