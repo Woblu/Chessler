@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Chess } from 'chess.js'
+import { Chess, type Move } from 'chess.js'
 
 interface GameControlPanelProps {
   chess: Chess
@@ -18,11 +18,10 @@ export default function GameControlPanel({
   onDrawOffer,
   isGameActive,
 }: GameControlPanelProps) {
-  const [history, setHistory] = useState<Array<{ move: any; san: string; color: 'w' | 'b' }>>([])
+  const [history, setHistory] = useState<Move[]>([])
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1)
   const [isNavigating, setIsNavigating] = useState(false)
-  // Keep a ref to the full history that never gets reset
-  const fullHistoryRef = useRef<Array<{ move: any; san: string; color: 'w' | 'b' }>>([])
+  const fullHistoryRef = useRef<Move[]>([])
 
   // Update history when chess state changes
   // Always keep the full history, regardless of navigation position
@@ -92,7 +91,7 @@ export default function GameControlPanel({
     for (let i = 0; i <= targetIndex && i < history.length; i++) {
       const move = history[i]
       try {
-        tempChess.move(move.move)
+        tempChess.move(move.san)
       } catch (error) {
         console.error('Error replaying move:', error)
         break

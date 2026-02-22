@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import CustomBoard from '@/components/CustomBoard'
+import { Chessboard } from 'react-chessboard'
+import { getCustomPieces, getCustomSquareStyles } from '@/lib/chess-customization'
 import { Chess } from 'chess.js'
 import { io, Socket } from 'socket.io-client'
 
@@ -202,7 +204,7 @@ export default function PlayPage() {
     }
   }, [user, gameId])
 
-  function onDrop(sourceSquare: string, targetSquare: string) {
+  function onDrop(sourceSquare: string, targetSquare: string, _piece: string): boolean {
     if (!socket || !gameState) return false
 
     // Check if it's the player's turn
@@ -322,7 +324,7 @@ export default function PlayPage() {
                   boardOrientation={
                     gameState.yourColor === 'black' ? 'black' : 'white'
                   }
-                  arePiecesDraggable={isPlayerTurn && !gameState.gameOver}
+                  arePiecesDraggable={!!(isPlayerTurn && !gameState.gameOver)}
                   customPieces={getCustomPieces(userPreferences?.pieceSet || 'caliente')}
                   customDarkSquareStyle={getCustomSquareStyles(userPreferences?.boardStyle || 'canvas2').dark}
                   customLightSquareStyle={getCustomSquareStyles(userPreferences?.boardStyle || 'canvas2').light}

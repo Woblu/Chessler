@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import CustomBoard from '@/components/CustomBoard'
 import { Chess } from 'chess.js'
@@ -71,7 +71,7 @@ function GameOverModal({
   )
 }
 
-export default function PlayBotPage() {
+function PlayBotPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const nodeId = searchParams.get('nodeId')
@@ -85,7 +85,7 @@ export default function PlayBotPage() {
   const [showGameOverModal, setShowGameOverModal] = useState(false)
   const [gameId, setGameId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
-  const [userInfo, setUserInfo] = useState<{ name: string; rank: string; currentPoints: number } | null>(null)
+  const [userInfo, setUserInfo] = useState<{ name: string; rank: string; currentPoints: number; pieceSet: string; boardStyle: string } | null>(null)
   const [equippedBoardUrl, setEquippedBoardUrl] = useState<string | null>(null)
   const [equippedPieceSet, setEquippedPieceSet] = useState<string | null>(null)
   const [capturedWhitePieces, setCapturedWhitePieces] = useState<string[]>([])
@@ -154,6 +154,8 @@ export default function PlayBotPage() {
               name: data.user.name,
               rank: data.user.rank,
               currentPoints: data.user.currentPoints,
+              pieceSet: data.user.pieceSet || 'caliente',
+              boardStyle: data.user.boardStyle || 'canvas2',
             })
             
             // User preferences are now handled via equipped cosmetics
@@ -192,10 +194,12 @@ export default function PlayBotPage() {
               
               // Create a bot profile from the tournament node
               const botProfile: BotProfile = {
+                id: data.node.id,
                 name: data.node.botName,
                 elo: data.node.botElo,
-                depth: Math.min(Math.max(Math.floor(data.node.botElo / 200), 1), 15), // Scale depth based on ELO
+                depth: Math.min(Math.max(Math.floor(data.node.botElo / 200), 1), 15),
                 skillLevel: data.node.botElo < 1200 ? 1 : data.node.botElo < 2000 ? 5 : 15,
+                description: `Tournament opponent (${data.node.botElo} ELO)`,
               }
               setSelectedBot(botProfile)
             }
@@ -679,5 +683,13 @@ export default function PlayBotPage() {
         />
       </div>
     </div>
+  )
+}
+
+export default function PlayBotPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-[#1a1a1a] to-[#2d2d2d] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#7fa650] border-t-transparent rounded-full animate-spin"></div></div>}>
+      <PlayBotPageInner />
+    </Suspense>
   )
 }

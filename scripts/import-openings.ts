@@ -79,8 +79,6 @@ async function importOpenings() {
         data: {
           ecoCode: opening.code,
           name: opening.name,
-          pgn: result.pgn,
-          fen: result.fen,
         },
       })
 

@@ -20,13 +20,15 @@ interface Message {
   senderId: string
   receiverId: string
   content: string
-  createdAt: string
+  createdAt: Date | string
   sender: {
-    clerk_id: string
+    id: string
+    clerk_id: string | null
     name: string
   }
   receiver: {
-    clerk_id: string
+    id: string
+    clerk_id: string | null
     name: string
   }
 }
@@ -119,11 +121,13 @@ export default function SocialWidget() {
       content,
       createdAt: new Date().toISOString(),
       sender: {
-        clerk_id: clerkUser?.id ?? '',
+        id: clerkUser?.id ?? '',
+        clerk_id: clerkUser?.id ?? null,
         name: clerkUser?.fullName ?? 'You',
       },
       receiver: {
-        clerk_id: selectedFriend.clerk_id ?? selectedFriend.id,
+        id: selectedFriend.id ?? selectedFriend.clerk_id ?? '',
+        clerk_id: selectedFriend.clerk_id ?? null,
         name: selectedFriend.name,
       },
     }

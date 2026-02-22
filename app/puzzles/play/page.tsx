@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Chessboard } from 'react-chessboard'
-import { Chess } from 'chess.js'
+import { Chess, type Square } from 'chess.js'
 import { getRandomPuzzleByTheme } from '@/actions/puzzles'
 import { awardPawns } from '@/actions/economy'
 import { getCustomPieces, getCustomSquareStyles } from '@/lib/chess-customization'
@@ -17,7 +17,7 @@ interface Puzzle {
   pawnReward: number
 }
 
-export default function PuzzlePlayPage() {
+function PuzzlePlayPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const theme = searchParams.get('theme') || 'mate'
@@ -35,8 +35,8 @@ export default function PuzzlePlayPage() {
   const [flashGreen, setFlashGreen] = useState(false)
   const [userPreferences, setUserPreferences] = useState<{ pieceSet: string; boardStyle: string } | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
-  const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
-  const [validMoves, setValidMoves] = useState<string[]>([])
+  const [selectedSquare, setSelectedSquare] = useState<Square | null>(null)
+  const [validMoves, setValidMoves] = useState<Square[]>([])
   const [minRating, setMinRating] = useState(800)
   const [maxRating, setMaxRating] = useState(1500)
 
@@ -142,7 +142,7 @@ export default function PuzzlePlayPage() {
     }
   }
 
-  const handleSquareClick = (square: string) => {
+  const handleSquareClick = (square: Square) => {
     if (!chess || !isUserTurn || isAutoPlaying || !puzzle) {
       return
     }
@@ -186,7 +186,7 @@ export default function PuzzlePlayPage() {
     }
   }
 
-  const handleMove = (sourceSquare: string, targetSquare: string) => {
+  const handleMove = (sourceSquare: Square, targetSquare: Square) => {
     if (!chess || !isUserTurn || isAutoPlaying || !puzzle) {
       return false
     }
@@ -277,14 +277,13 @@ export default function PuzzlePlayPage() {
     }
   }
 
-  const onDrop = (sourceSquare: string, targetSquare: string) => {
-    // Clear selection when dragging
+  const onDrop = (sourceSquare: Square, targetSquare: Square, _piece: string): boolean => {
     setSelectedSquare(null)
     setValidMoves([])
     return handleMove(sourceSquare, targetSquare)
   }
 
-  const onSquareClick = (square: string) => {
+  const onSquareClick = (square: Square) => {
     handleSquareClick(square)
   }
 
@@ -493,5 +492,13 @@ export default function PuzzlePlayPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function PuzzlePlayPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-[#1a1a1a] to-[#2d2d2d] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#7fa650] border-t-transparent rounded-full animate-spin"></div></div>}>
+      <PuzzlePlayPageInner />
+    </Suspense>
   )
 }

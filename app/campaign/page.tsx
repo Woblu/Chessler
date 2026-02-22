@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -25,7 +25,7 @@ interface Region {
   isLocked: boolean
 }
 
-export default function CampaignPage() {
+function CampaignPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [regions, setRegions] = useState<Region[]>([])
@@ -368,5 +368,13 @@ export default function CampaignPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function CampaignPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-[#1a1a1a] to-[#2d2d2d] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#7fa650] border-t-transparent rounded-full animate-spin"></div></div>}>
+      <CampaignPageInner />
+    </Suspense>
   )
 }

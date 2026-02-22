@@ -1,9 +1,9 @@
 'use client'
 
-import { Chessboard, CustomPieceFn } from 'react-chessboard'
-import { ChessboardProps } from 'react-chessboard/dist/chessboard/types'
+import { Chessboard } from 'react-chessboard'
+import { ChessboardProps, CustomPieceFn } from 'react-chessboard/dist/chessboard/types'
 
-interface CustomBoardProps extends Omit<ChessboardProps, 'customPieces' | 'customDarkSquareStyle' | 'customLightSquareStyle'> {
+interface CustomBoardProps extends Omit<ChessboardProps, 'customPieces' | 'customDarkSquareStyle' | 'customLightSquareStyle' | 'ref'> {
   equippedBoardUrl?: string | null
   equippedPieceSet?: string | null
 }

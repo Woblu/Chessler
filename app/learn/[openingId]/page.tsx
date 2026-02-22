@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Chessboard } from 'react-chessboard'
-import { Chess, type Piece, type Square } from 'chess.js'
+import { Chess, type Square } from 'chess.js'
 import { getCustomPieces, getCustomSquareStyles } from '@/lib/chess-customization'
 
 interface LineData {
@@ -268,7 +268,7 @@ export default function LearnOpeningPage() {
   const onDrop = (
     sourceSquare: Square,
     targetSquare: Square,
-    _piece: Piece
+    _piece: string
   ): boolean => {
     if (!lineData || lineData.completed || lineCompleted || !isUserTurn || isOpponentMoving) {
       return false
@@ -506,7 +506,7 @@ export default function LearnOpeningPage() {
                 position={chess.fen()}
                 onPieceDrop={onDrop}
                 boardOrientation="white"
-                arePiecesDraggable={!lineCompleted && isUserTurn && !isOpponentMoving && lineData && currentMoveIndex < lineData.line.length}
+                arePiecesDraggable={!!(!lineCompleted && isUserTurn && !isOpponentMoving && lineData && currentMoveIndex < lineData.line.length)}
                 customPieces={getCustomPieces(userPreferences?.pieceSet || 'caliente')}
                 customDarkSquareStyle={getCustomSquareStyles(userPreferences?.boardStyle || 'canvas2').dark}
                 customLightSquareStyle={getCustomSquareStyles(userPreferences?.boardStyle || 'canvas2').light}

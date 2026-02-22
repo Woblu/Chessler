@@ -32,7 +32,7 @@ export function useStockfish(): UseStockfishReturn {
   const [isThinking, setIsThinking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const pendingResolveRef = useRef<((move: string | null) => void) | null>(null)
-  const pendingEvalResolveRef = useRef<((eval: Evaluation | null) => void) | null>(null)
+  const pendingEvalResolveRef = useRef<((evalResult: Evaluation | null) => void) | null>(null)
   const currentEvalRef = useRef<Evaluation | null>(null)
 
   useEffect(() => {
