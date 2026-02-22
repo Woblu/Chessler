@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, rank } = await request.json()
+    const { name, rank, email } = await request.json()
 
     if (!name) {
       return NextResponse.json(
@@ -12,9 +12,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Email is required by schema; use fallback for legacy callers that don't send it
+    const userEmail =
+      email && typeof email === 'string' && email.trim().length > 0
+        ? email.trim()
+        : `legacy-${Date.now()}-${Math.random().toString(36).slice(2, 11)}@placeholder.local`
+
     const user = await prisma.user.create({
       data: {
         name,
+        email: userEmail,
         rank: rank || 'Beginner',
       },
     })
