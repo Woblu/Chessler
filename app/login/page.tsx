@@ -43,7 +43,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-chess-bg flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <div className="inline-block w-16 h-16 bg-gradient-to-br from-pawn-gold to-pawn-gold-hover rounded-lg flex items-center justify-center mb-4">
+          <div className="inline-flex w-16 h-16 bg-gradient-to-br from-pawn-gold to-pawn-gold-hover rounded-lg items-center justify-center mb-4">
             <span className="text-slate-900 font-bold text-3xl">♔</span>
           </div>
           <h1 className="text-3xl font-extrabold text-white mb-2">Welcome Back</h1>
