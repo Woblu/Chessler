@@ -1,0 +1,27 @@
+{
+  "name": "Rookly – Play & Rank Chess",
+  "short_name": "Rookly",
+  "description": "Play chess, climb the ranks, conquer the World Chess Tour.",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "start_url": "/",
+  "categories": ["games", "sports"],
+  "icons": [
+    {
+      "src": "/rooklysmall.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/rooklysmall.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": []
+}

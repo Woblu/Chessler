@@ -1,21 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useUser } from '@clerk/nextjs'
-import { GiCoins, GiChessPawn, GiCrossedSwords, GiBookCover, GiPuzzle, GiOpenTreasureChest, GiWorld, GiVisoredHelm, GiTrophy } from 'react-icons/gi'
+import { GiCrossedSwords, GiBookCover, GiPuzzle, GiOpenTreasureChest, GiWorld, GiTrophy } from 'react-icons/gi'
 import { assignDailyQuests } from '@/actions/quests'
-
-interface User {
-  id: string
-  name: string
-  rank: string
-  currentPoints: number
-  gamesPlayedInCycle: number
-  totalGames: number
-  pawns: number
-}
+import { useDbUser } from '@/app/context/UserContext'
 
 interface Boss {
   name: string
@@ -48,53 +37,24 @@ interface Cosmetic {
 }
 
 export default function HomePage() {
-  const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { dbUser, isUserLoading } = useDbUser()
   const [boss, setBoss] = useState<Boss | null>(null)
   const [openings, setOpenings] = useState<Opening[]>([])
   const [puzzleTheme, setPuzzleTheme] = useState<PuzzleTheme | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([])
   const [featuredCosmetics, setFeaturedCosmetics] = useState<Cosmetic[]>([])
-  const [showProfileDropdown, setShowProfileDropdown] = useState(false)
 
   useEffect(() => {
-    if (user) {
+    if (dbUser?.id) {
       fetchDashboardData()
+      assignDailyQuests(dbUser.id).catch((error) => {
+        console.error('Error assigning daily quests:', error)
+      })
     }
-  }, [user])
-
-  const fetchUser = async () => {
-    try {
-      const response = await fetch('/api/auth/me')
-      if (response.ok) {
-        const data = await response.json()
-        setUser(data.user)
-        
-        // Assign daily quests if user is logged in
-        if (data.user?.id) {
-          assignDailyQuests(data.user.id).catch((error) => {
-            console.error('Error assigning daily quests:', error)
-          })
-        }
-      } else if (response.status === 401) {
-        // User is not authenticated - this is expected when not signed in
-        setUser(null)
-      } else {
-        // Other error - log it but don't crash
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-        console.error('Error fetching user:', errorData)
-      }
-    } catch (error) {
-      console.error('Error fetching user:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [dbUser?.id])
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch all dashboard data in parallel
       const [bossRes, openingsRes, puzzleRes, leaderboardRes, cosmeticsRes] = await Promise.all([
         fetch('/api/dashboard/current-boss'),
         fetch('/api/dashboard/openings'),
@@ -132,14 +92,16 @@ export default function HomePage() {
     }
   }
 
-  useEffect(() => {
-    fetchUser()
-  }, [])
-
-  const progressPercentage = user ? (user.gamesPlayedInCycle / 20) * 100 : 0
+  if (isUserLoading) {
+    return (
+      <div className="min-h-screen bg-chess-bg flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-pawn-gold border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    )
+  }
 
   // Not logged in - show landing page
-  if (!loading && !user) {
+  if (!dbUser) {
     return (
       <div className="min-h-screen bg-chess-bg">
         <div className="bg-gradient-to-br from-pawn-gold to-pawn-gold-hover text-slate-900 py-20">
@@ -147,7 +109,9 @@ export default function HomePage() {
             <div className="inline-block w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mb-6 backdrop-blur-sm">
               <span className="text-6xl">♔</span>
             </div>
-            <h1 className="text-5xl font-extrabold mb-4">Welcome to Chessler</h1>
+            <h1 className="text-5xl font-extrabold mb-4">
+              Welcome to <span className="text-chess-bg">Rook</span><span className="text-slate-900/70">ly</span>
+            </h1>
             <p className="text-xl mb-8 text-slate-900/90">
               Play chess, climb ranks, and compete with players worldwide
             </p>
@@ -171,74 +135,8 @@ export default function HomePage() {
     )
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-chess-bg flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-pawn-gold border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-chess-bg">
-      {/* Top Navigation Bar */}
-      <nav className="h-16 bg-slate-950 border-b border-chess-border flex items-center justify-between px-6">
-        {/* Left: Logo/Title */}
-        <Link href="/" className="flex items-center space-x-2">
-          <span className="text-2xl">♔</span>
-          <span className="text-xl font-bold text-white">Chessler</span>
-        </Link>
-
-        {/* Right: Wallet & Profile */}
-        <div className="flex items-center space-x-4">
-          {/* Wallet Pill */}
-          <div className="flex items-center space-x-2 bg-chess-card px-4 py-2 rounded-full border border-chess-border">
-            <GiCoins className="w-6 h-6 text-pawn-gold drop-shadow-md" />
-            <span className="text-white font-semibold">{user?.pawns || 0}</span>
-            <span className="text-slate-300 text-sm">pawns</span>
-          </div>
-
-          {/* Profile Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-              className="flex items-center space-x-2 bg-chess-card px-4 py-2 rounded-lg border border-chess-border hover:bg-slate-700 transition-colors"
-            >
-              <span className="text-white font-medium">{user?.name}</span>
-              <GiVisoredHelm className="w-4 h-4 text-slate-400" />
-            </button>
-
-            {showProfileDropdown && (
-              <div className="absolute right-0 mt-2 w-64 bg-chess-card rounded-xl border border-chess-border shadow-xl z-50">
-                <div className="p-4">
-                  <div className="mb-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-slate-300 text-sm">Rank</span>
-                      <span className="text-white font-semibold">{user?.rank}</span>
-                    </div>
-                    <div className="w-full bg-chess-bg rounded-full h-2 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-pawn-gold to-pawn-gold-hover transition-all"
-                        style={{ width: `${Math.min(progressPercentage, 100)}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-slate-300 mt-1">
-                      {user?.gamesPlayedInCycle || 0} / 20 games
-                    </div>
-                  </div>
-                  <Link
-                    href="/profile"
-                    className="block w-full text-center px-4 py-2 bg-pawn-gold hover:bg-pawn-gold-hover text-slate-900 font-bold rounded-lg transition-colors"
-                  >
-                    View Profile
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </nav>
-
       {/* Main Layout - 12 Column Grid */}
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-12 gap-6">
@@ -284,9 +182,9 @@ export default function HomePage() {
 
           {/* Quick Play & Multiplayer - 4 columns */}
           <div className="col-span-12 lg:col-span-4 space-y-4">
-            {/* Play Family Online */}
+            {/* Play Online */}
             <div className="bg-chess-card rounded-xl p-6 border border-chess-border">
-              <h3 className="text-xl font-extrabold text-white mb-4">Play Family Online</h3>
+              <h3 className="text-xl font-extrabold text-white mb-4">Play Online</h3>
               <Link
                 href="/play"
                 className="block w-full text-center px-4 py-3 bg-pawn-gold hover:bg-pawn-gold-hover text-slate-900 font-bold rounded-lg transition-colors"
@@ -359,11 +257,11 @@ export default function HomePage() {
 
           {/* Shop & Leaderboard Sidebar - 4 columns */}
           <div className="col-span-12 lg:col-span-4 space-y-4">
-            {/* Family Standings */}
+            {/* Standings */}
             <div className="bg-chess-card rounded-xl p-6 border border-chess-border">
               <div className="flex items-center space-x-2 mb-4">
                 <GiTrophy className="w-6 h-6 text-pawn-gold drop-shadow-md" />
-                <h3 className="text-xl font-extrabold text-white">Family Standings</h3>
+                <h3 className="text-xl font-extrabold text-white">Standings</h3>
               </div>
               <div className="space-y-3">
                 {leaderboard.length > 0 ? (

@@ -23,9 +23,12 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^6.38.1",
+    "@ducanh2912/next-pwa": "^10.2.9",
     "@prisma/client": "^5.7.1",
     "@react-email/components": "^1.0.8",
+    "@types/canvas-confetti": "^1.9.0",
     "bcryptjs": "^2.4.3",
+    "canvas-confetti": "^1.9.4",
     "chess.js": "^1.0.0-beta.6",
     "csv-parser": "^3.2.0",
     "d3-geo": "^3.1.1",

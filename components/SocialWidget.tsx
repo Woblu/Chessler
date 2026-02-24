@@ -9,7 +9,6 @@ import { sendChallengeEmail } from '@/actions/email'
 
 interface Friend {
   id: string
-  clerk_id?: string | null
   name: string
   email: string
   rank: string
@@ -54,7 +53,7 @@ export default function SocialWidget() {
 
   useEffect(() => {
     if (selectedFriend && activeTab === 'chat') {
-      loadMessages(selectedFriend.id ?? selectedFriend.clerk_id ?? '')
+      loadMessages(selectedFriend.id)
     }
   }, [selectedFriend, activeTab])
 
@@ -117,7 +116,7 @@ export default function SocialWidget() {
     const optimisticMessage: Message = {
       id: `temp-${Date.now()}`,
       senderId: clerkUser?.id || '',
-      receiverId: selectedFriend.id ?? selectedFriend.clerk_id ?? '',
+      receiverId: selectedFriend.id,
       content,
       createdAt: new Date().toISOString(),
       sender: {
@@ -126,15 +125,15 @@ export default function SocialWidget() {
         name: clerkUser?.fullName ?? 'You',
       },
       receiver: {
-        id: selectedFriend.id ?? selectedFriend.clerk_id ?? '',
-        clerk_id: selectedFriend.clerk_id ?? null,
+        id: selectedFriend.id,
+        clerk_id: null,
         name: selectedFriend.name,
       },
     }
     setMessages((prev) => [...prev, optimisticMessage])
 
     // Send to server
-    const result = await sendMessage(selectedFriend.id ?? selectedFriend.clerk_id ?? '', content)
+    const result = await sendMessage(selectedFriend.id, content)
     if (result.success && result.message) {
       // Replace optimistic message with real one
       setMessages((prev) =>
@@ -151,14 +150,13 @@ export default function SocialWidget() {
   }
 
   const handleChallenge = async (friend: Friend) => {
-    if (!friend?.id && !friend?.clerk_id) return
+    if (!friend?.id) return
 
     try {
       setLoading(true)
       setError(null)
 
-      // Find the friend's user record to get their email (support id or clerk_id)
-      const friendUser = await fetch(`/api/user/${friend.id ?? friend.clerk_id}`)
+      const friendUser = await fetch(`/api/user/${friend.id}`)
         .then((res) => res.json())
         .catch(() => null)
 
@@ -174,6 +172,7 @@ export default function SocialWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ opponentId: friend.id }),
       })
+
 
       if (!gameResponse.ok) {
         throw new Error('Failed to create game')

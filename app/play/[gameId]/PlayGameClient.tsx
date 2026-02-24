@@ -1,358 +1,522 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import CustomBoard from '@/components/CustomBoard'
-import { Chessboard } from 'react-chessboard'
-import { getCustomPieces, getCustomSquareStyles } from '@/lib/chess-customization'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Chess } from 'chess.js'
+import { motion } from 'framer-motion'
 import { io, Socket } from 'socket.io-client'
+import { Wifi, WifiOff, Handshake, X, Check } from 'lucide-react'
 
-interface GameState {
+import CustomBoard  from '@/components/CustomBoard'
+import PlayerHeader from '@/components/PlayerHeader'
+import dynamic from 'next/dynamic'
+
+const GameControlPanel = dynamic(() => import('@/components/GameControlPanel'))
+const EvalBar          = dynamic(() => import('@/components/EvalBar'))
+const VictoryModal     = dynamic(() => import('@/components/VictoryModal'))
+
+import { useStockfish }    from '@/hooks/useStockfish'
+import { useChessSound }   from '@/hooks/useChessSound'
+import { useGameAnalysis } from '@/hooks/useGameAnalysis'
+import { usePremove }      from '@/hooks/usePremove'
+import { useShake }        from '@/hooks/useShake'
+import { useDbUser }       from '@/app/context/UserContext'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface PlayerInfo { id: string; name: string; rank: string }
+
+interface ServerGameState {
   fen: string
   currentTurn: 'w' | 'b'
   gameOver: boolean
-  result?: string
-  yourColor?: 'white' | 'black'
-  whitePlayer?: string
-  blackPlayer?: string
-}
-
-interface GameOverModalProps {
-  isOpen: boolean
-  result: string
+  result: string | null
   yourColor: 'white' | 'black'
-  whitePlayer: string
-  blackPlayer: string
-  onClose: () => void
+  whitePlayer: PlayerInfo
+  blackPlayer: PlayerInfo
+  whiteTimeMs: number
+  blackTimeMs: number
+  increment: number
+  moves: string[]
 }
 
-function GameOverModal({
-  isOpen,
-  result,
-  yourColor,
-  whitePlayer,
-  blackPlayer,
-  onClose,
-}: GameOverModalProps) {
-  if (!isOpen) return null
-
-  const getResultMessage = () => {
-    if (result === 'WHITE_WIN') {
-      if (yourColor === 'white') {
-        return { message: 'You Won! 🎉', points: '1.0 point', bonus: 'Bonus points may apply if you beat a higher-ranked player!' }
-      } else {
-        return { message: 'You Lost', points: '0.0 points', bonus: '' }
-      }
-    } else if (result === 'BLACK_WIN') {
-      if (yourColor === 'black') {
-        return { message: 'You Won! 🎉', points: '1.0 point', bonus: 'Bonus points may apply if you beat a higher-ranked player!' }
-      } else {
-        return { message: 'You Lost', points: '0.0 points', bonus: '' }
-      }
-    } else {
-      return { message: 'Draw', points: '0.5 points', bonus: '' }
-    }
-  }
-
-  const resultInfo = getResultMessage()
-  const isWin = resultInfo.message.includes('Won')
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-      <div className="bg-[#2d2d2d] rounded-lg p-8 max-w-md w-full mx-4 shadow-xl border border-[#3d3d3d]">
-        <div className="text-center mb-6">
-          <div className="inline-block w-16 h-16 bg-gradient-to-br from-[#7fa650] to-[#5d7e3a] rounded-full flex items-center justify-center mb-4">
-            <span className="text-white text-3xl">♔</span>
-          </div>
-          <h2 className="text-3xl font-bold mb-2 text-white">
-            Game Over
-          </h2>
-        </div>
-        <div className="text-center mb-6">
-          <div className={`text-2xl font-semibold mb-2 ${isWin ? 'text-[#7fa650]' : 'text-gray-300'}`}>
-            {resultInfo.message}
-          </div>
-          <div className="bg-gradient-to-br from-[#7fa650] to-[#5d7e3a] text-white rounded-lg p-4 mb-4">
-            <div className="text-sm opacity-90 mb-1">Points Awarded</div>
-            <div className="text-2xl font-bold">{resultInfo.points}</div>
-          </div>
-          {resultInfo.bonus && (
-            <div className="text-sm text-[#7fa650] mt-2 bg-[#1a1a1a] p-2 rounded border border-[#3d3d3d]">
-              {resultInfo.bonus}
-            </div>
-          )}
-          <div className="border-t border-[#3d3d3d] pt-4 mt-4">
-            <div className="text-sm text-gray-300">
-              <div className="font-medium mb-1">Players:</div>
-              <div>White: {whitePlayer}</div>
-              <div>Black: {blackPlayer}</div>
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={onClose}
-          className="w-full bg-[#7fa650] text-white py-3 rounded-lg hover:bg-[#6d8f42] transition-colors font-medium"
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  )
+interface MoveMadeEvent {
+  from: string; to: string; san: string; fen: string
+  currentTurn: 'w' | 'b'
+  whiteTimeMs: number; blackTimeMs: number
+  gameOver: boolean; result: string | null
+  isCheck: boolean
 }
 
-export default function PlayPage() {
-  const params = useParams()
-  const router = useRouter()
-  const gameId = params.gameId as string
-  const [socket, setSocket] = useState<Socket | null>(null)
-  const [game, setGame] = useState(new Chess())
-  const [gameState, setGameState] = useState<GameState | null>(null)
-  const [user, setUser] = useState<any>(null)
+interface GameOverEvent {
+  result: string
+  reason: 'checkmate' | 'resign' | 'timeout' | 'abandonment' | 'agreement'
+  fen: string
+  whiteTimeMs: number; blackTimeMs: number
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const REASON_LABEL: Record<string, string> = {
+  checkmate:   'by Checkmate',
+  resign:      'by Resignation',
+  timeout:     'on Time',
+  abandonment: '— Opponent abandoned',
+  agreement:   'by Agreement',
+}
+
+function msToSec(ms: number) { return ms === -1 ? undefined : Math.round(ms / 1000) }
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+interface Props { gameId: string }
+
+export default function PlayGameClient({ gameId }: Props) {
+  const router        = useRouter()
+  const { dbUser }    = useDbUser()
+  const { isReady, getEvaluation } = useStockfish()
+  const { playMove, playCapture, playCheck, playGameEnd } = useChessSound()
+  const { isAnalyzing, progress: analysisProgress, result: analysisResult, analyze } = useGameAnalysis()
+  const { premove, premoveFrom, handlePremoveClick, attemptPremove, clearPremove, premoveStyles } = usePremove()
+  const { shakeControls, triggerShake } = useShake()
+
+  // ── Socket ────────────────────────────────────────────────────────────────
+  const socketRef     = useRef<Socket | null>(null)
+  const [connected, setConnected]       = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
+
+  // ── Game state ────────────────────────────────────────────────────────────
+  const [chess, setChess]           = useState(new Chess())
+  const chessRef                    = useRef(chess)
+  const [serverState, setServerState] = useState<ServerGameState | null>(null)
+  const [displayFen, setDisplayFen] = useState(new Chess().fen())
+
+  // Clocks (seconds; undefined = unlimited)
+  const [whiteTimeSec, setWhiteTimeSec] = useState<number | undefined>(undefined)
+  const [blackTimeSec, setBlackTimeSec] = useState<number | undefined>(undefined)
+  const [increment, setIncrement]       = useState(0)
+
+  // Captured pieces
+  const [capturedWhite, setCapturedWhite] = useState<string[]>([])
+  const [capturedBlack, setCapturedBlack] = useState<string[]>([])
+
+  // Evaluation
+  const [currentEval, setCurrentEval] = useState<{ score: number; isMate: boolean; mateIn: number | null } | null>(null)
+
+  // Cosmetics
+  const [equippedBoardUrl,  setEquippedBoardUrl]  = useState<string | null>(null)
+  const [equippedPieceSet, setEquippedPieceSet]  = useState<string | null>(null)
+
+  // ── Post-game ─────────────────────────────────────────────────────────────
+  const [showVictoryModal,    setShowVictoryModal]    = useState(false)
+  const [gameResult,          setGameResult]          = useState<'win' | 'loss' | 'draw' | null>(null)
+  const [gameEndReason,       setGameEndReason]       = useState('')
+  const [mmrBefore,           setMmrBefore]           = useState(0)
+  const [mmrAfter,            setMmrAfter]            = useState(0)
+  const [gamesInCycleBefore,  setGamesInCycleBefore]  = useState(0)
+  const [gamesInCycleAfter,   setGamesInCycleAfter]   = useState(0)
+
+  // ── Opponent disconnect countdown ─────────────────────────────────────────
+  const [oppDisconnected,  setOppDisconnected]  = useState(false)
+  const [oppCountdown,     setOppCountdown]     = useState(60)
+  const oppCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // ── Draw offer ────────────────────────────────────────────────────────────
+  const [drawOfferFrom,  setDrawOfferFrom]  = useState<'sent' | 'received' | null>(null)
+  const [drawDeclined,   setDrawDeclined]   = useState(false)
+
   const [error, setError] = useState<string | null>(null)
-  const [showGameOver, setShowGameOver] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [userPreferences, setUserPreferences] = useState<{ pieceSet: string; boardStyle: string } | null>(null)
-  const gameRef = useRef(new Chess())
 
-  // Fetch authenticated user
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const isUserTurn = serverState
+    ? chess.turn() === (serverState.yourColor === 'white' ? 'w' : 'b')
+    : false
+  const userColor   = serverState?.yourColor ?? 'white'
+  const myPlayer    = serverState ? (userColor === 'white' ? serverState.whitePlayer : serverState.blackPlayer) : null
+  const oppPlayer   = serverState ? (userColor === 'white' ? serverState.blackPlayer : serverState.whitePlayer) : null
+
+  // ── Load cosmetics ────────────────────────────────────────────────────────
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const response = await fetch('/api/auth/me')
-        if (!response.ok) {
-          router.push('/login')
-          return
-        }
-        const data = await response.json()
-        setUser(data.user)
-        // Set user preferences for chess customization
-        if (data.user) {
-          setUserPreferences({
-            pieceSet: data.user.pieceSet || 'caliente',
-            boardStyle: data.user.boardStyle || 'canvas2',
-          })
-        }
-      } catch (error) {
-        router.push('/login')
-      } finally {
-        setLoading(false)
-      }
+    fetch('/api/user/equipped-cosmetics')
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) { setEquippedBoardUrl(d.boardUrl); setEquippedPieceSet(d.pieceSet) } })
+      .catch(() => {})
+  }, [])
+
+  // ── Snapshot MMR before game ──────────────────────────────────────────────
+  useEffect(() => {
+    if (dbUser) {
+      setMmrBefore(dbUser.currentPoints)
+      setGamesInCycleBefore(dbUser.gamesPlayedInCycle)
     }
-    fetchUser()
-  }, [router])
+  }, [dbUser?.id])
 
+  // ── Socket lifecycle ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (!user) return
+    if (!dbUser) return
 
-    // Initialize socket connection
-    const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000', {
+    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000', {
       transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1500,
+    })
+    socketRef.current = socket
+
+    socket.on('connect', () => {
+      setConnected(true)
+      setReconnecting(false)
+      socket.emit('join_game', { gameId, playerId: dbUser.id })
     })
 
-    newSocket.on('connect', () => {
-      console.log('Connected to server')
-      setSocket(newSocket)
-      // Auto-join game when connected
-      newSocket.emit('join_game', { gameId, playerId: user.id })
+    socket.on('disconnect', () => { setConnected(false); setReconnecting(true) })
+    socket.on('reconnect',  () => { setReconnecting(false) })
+
+    socket.on('error', (d: { message: string }) => setError(d.message))
+
+    // Full game state (on join / rejoin)
+    socket.on('game_state', (d: ServerGameState) => {
+      const c = new Chess(d.fen)
+      chessRef.current = c
+      setChess(c)
+      setDisplayFen(d.fen)
+      setServerState(d)
+      setWhiteTimeSec(msToSec(d.whiteTimeMs))
+      setBlackTimeSec(msToSec(d.blackTimeMs))
+      setIncrement(d.increment)
+      updateCaptured(c)
     })
 
-    newSocket.on('disconnect', () => {
-      console.log('Disconnected from server')
+    // Opponent move (or our own echoed back)
+    socket.on('move_made', (d: MoveMadeEvent) => {
+      const next = new Chess(d.fen)
+      chessRef.current = next
+      setChess(next)
+      setDisplayFen(d.fen)
+      setWhiteTimeSec(msToSec(d.whiteTimeMs))
+      setBlackTimeSec(msToSec(d.blackTimeMs))
+      setServerState((prev) => prev ? { ...prev, fen: d.fen, currentTurn: d.currentTurn, gameOver: d.gameOver, result: d.result } : prev)
+      updateCaptured(next)
+
+      // Sounds & effects
+      const lastMove = next.history({ verbose: true }).slice(-1)[0]
+      if (lastMove?.captured) playCapture(); else playMove()
+      if (d.isCheck) { playCheck(); triggerShake() }
     })
 
-    newSocket.on('error', (data: { message: string }) => {
-      setError(data.message)
+    // Game over
+    socket.on('game_over', async (d: GameOverEvent) => {
+      setGameEndReason(REASON_LABEL[d.reason] ?? '')
+      setWhiteTimeSec(msToSec(d.whiteTimeMs))
+      setBlackTimeSec(msToSec(d.blackTimeMs))
+      playGameEnd()
+
+      // Determine win/loss/draw for current player
+      const result: 'win' | 'loss' | 'draw' =
+        d.result === 'DRAW' ? 'draw'
+        : (d.result === 'WHITE_WIN' && userColor === 'white') || (d.result === 'BLACK_WIN' && userColor === 'black')
+        ? 'win' : 'loss'
+      setGameResult(result)
+
+      // Fetch updated stats (after processGameResult ran on server)
+      try {
+        const me = await fetch('/api/auth/me').then((r) => r.json())
+        if (me?.currentPoints !== undefined) {
+          setMmrAfter(me.currentPoints)
+          setGamesInCycleAfter(me.gamesPlayedInCycle)
+        }
+      } catch {}
+
+      // Start post-game analysis
+      const uciMoves = chessRef.current.history({ verbose: true }).map((m) => m.from + m.to + (m.promotion ?? ''))
+      analyze(uciMoves)
+
+      setShowVictoryModal(true)
     })
 
-    newSocket.on('game_state', (data: GameState) => {
-      setGameState(data)
-      gameRef.current = new Chess(data.fen)
-      setGame(new Chess(data.fen))
+    // Opponent disconnected
+    socket.on('opponent_disconnected', ({ secondsLeft }: { color: string; secondsLeft: number }) => {
+      setOppDisconnected(true)
+      setOppCountdown(secondsLeft)
+      if (oppCountdownRef.current) clearInterval(oppCountdownRef.current)
+      oppCountdownRef.current = setInterval(() => {
+        setOppCountdown((prev) => {
+          if (prev <= 1) { clearInterval(oppCountdownRef.current!); return 0 }
+          return prev - 1
+        })
+      }, 1000)
     })
 
-    newSocket.on('move_made', (data: {
-      from: string
-      to: string
-      fen: string
-      currentTurn: 'w' | 'b'
-      gameOver: boolean
-      result?: string
-    }) => {
-      gameRef.current = new Chess(data.fen)
-      setGame(new Chess(data.fen))
-      setGameState((prev) => ({
-        ...prev!,
-        fen: data.fen,
-        currentTurn: data.currentTurn,
-        gameOver: data.gameOver,
-        result: data.result,
-      }))
+    socket.on('opponent_reconnected', () => {
+      setOppDisconnected(false)
+      if (oppCountdownRef.current) clearInterval(oppCountdownRef.current)
     })
 
-    newSocket.on('game_over', (data: { result: string; fen: string }) => {
-      setGameState((prev) => ({
-        ...prev!,
-        gameOver: true,
-        result: data.result,
-      }))
-      setShowGameOver(true)
+    // Draw offer events
+    socket.on('draw_offered',    () => setDrawOfferFrom('received'))
+    socket.on('draw_offer_sent', () => setDrawOfferFrom('sent'))
+    socket.on('draw_declined',   () => {
+      setDrawOfferFrom(null)
+      setDrawDeclined(true)
+      setTimeout(() => setDrawDeclined(false), 3000)
     })
 
     return () => {
-      newSocket.close()
+      if (oppCountdownRef.current) clearInterval(oppCountdownRef.current)
+      socket.disconnect()
     }
-  }, [user, gameId])
+  }, [dbUser?.id, gameId])
 
-  function onDrop(sourceSquare: string, targetSquare: string, _piece: string): boolean {
-    if (!socket || !gameState) return false
+  // ── Eval bar update ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isReady || !serverState || serverState.gameOver) return
+    getEvaluation(displayFen, 8).then((ev) => ev && setCurrentEval(ev)).catch(() => {})
+  }, [displayFen, isReady])
 
-    // Check if it's the player's turn
-    const isPlayerTurn =
-      (gameState.currentTurn === 'w' && gameState.yourColor === 'white') ||
-      (gameState.currentTurn === 'b' && gameState.yourColor === 'black')
+  // ── Captured pieces tracker ───────────────────────────────────────────────
+  const updateCaptured = useCallback((game: Chess) => {
+    const hist = game.history({ verbose: true })
+    const w: string[] = [], b: string[] = []
+    hist.forEach((m) => { if (m.captured) (m.color === 'w' ? w : b).push(m.captured) })
+    setCapturedWhite(w)
+    setCapturedBlack(b)
+  }, [])
 
-    if (!isPlayerTurn) {
-      setError('Not your turn!')
-      return false
+  // ── Premove attempt when user's turn starts ────────────────────────────────
+  useEffect(() => {
+    if (!isUserTurn || !serverState || serverState.gameOver) return
+    if (!premove && !premoveFrom) return
+    const result = attemptPremove(chessRef.current)
+    if (result) {
+      const lastMove = result.history({ verbose: true }).slice(-1)[0]
+      if (lastMove?.captured) playCapture(); else playMove()
+      if (result.isCheck()) { playCheck(); triggerShake() }
+      socketRef.current?.emit('make_move', { from: lastMove.from, to: lastMove.to })
+      // Optimistic update (server will echo back)
+      chessRef.current = result
+      setChess(result)
+      setDisplayFen(result.fen())
     }
+  }, [isUserTurn])
 
-    if (gameState.gameOver) {
-      setError('Game is over!')
-      return false
-    }
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
-    // Try to make the move locally first
-    const gameCopy = new Chess(gameRef.current.fen())
-    const move = gameCopy.move({
-      from: sourceSquare,
-      to: targetSquare,
-      promotion: 'q',
-    })
-
-    if (!move) {
-      setError('Invalid move')
-      return false
-    }
-
-    // Send move to server
-    socket.emit('make_move', {
-      from: sourceSquare,
-      to: targetSquare,
-    })
-
-    setError(null)
-    return true
+  const onDrop = (src: string, dst: string) => {
+    if (!socketRef.current || !serverState || serverState.gameOver || !isUserTurn) return false
+    try {
+      const next = new Chess(chessRef.current.fen())
+      const move = next.move({ from: src, to: dst, promotion: 'q' })
+      if (!move) return false
+      if (move.captured) playCapture(); else playMove()
+      if (next.isCheck()) { playCheck(); triggerShake() }
+      socketRef.current.emit('make_move', { from: src, to: dst })
+      // Optimistic update
+      chessRef.current = next
+      setChess(next)
+      setDisplayFen(next.fen())
+      return true
+    } catch { return false }
   }
 
-  const isPlayerTurn =
-    gameState &&
-    ((gameState.currentTurn === 'w' && gameState.yourColor === 'white') ||
-      (gameState.currentTurn === 'b' && gameState.yourColor === 'black'))
+  const onSquareClick = (square: string) => {
+    if (!serverState || serverState.gameOver || isUserTurn) return
+    handlePremoveClick(square, chessRef.current, userColor === 'white' ? 'w' : 'b')
+  }
 
-  if (loading) {
+  const onResign = () => {
+    if (!confirm('Are you sure you want to resign?')) return
+    socketRef.current?.emit('resign')
+  }
+
+  const onDrawOffer = () => {
+    if (drawOfferFrom === 'sent') return
+    socketRef.current?.emit('offer_draw')
+  }
+
+  const acceptDraw  = () => socketRef.current?.emit('accept_draw')
+  const declineDraw = () => { socketRef.current?.emit('decline_draw'); setDrawOfferFrom(null) }
+
+  // ── Loading state ─────────────────────────────────────────────────────────
+  if (!dbUser || !serverState) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#1a1a1a] to-[#0f0f0f] flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-[#7fa650] border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-chess-bg flex flex-col items-center justify-center gap-4">
+        <div className="w-12 h-12 border-4 border-pawn-gold border-t-transparent rounded-full animate-spin" />
+        <p className="text-slate-400 text-sm">{connected ? 'Joining game…' : 'Connecting…'}</p>
       </div>
     )
   }
 
+  const unlimited = serverState.whiteTimeMs === -1
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a1a1a] to-[#0f0f0f]">
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Chess Game</h1>
-          <p className="text-gray-300">Game ID: {gameId}</p>
+    <div className="min-h-screen bg-chess-bg p-2 sm:p-4 lg:p-6">
+      <div className="max-w-5xl mx-auto">
+
+        {/* ── Status bar ──────────────────────────────────────────────────── */}
+        <div className="mb-3 flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-base sm:text-xl font-bold text-white truncate">
+              vs <span className="text-pawn-gold">{oppPlayer?.name}</span>
+              <span className="text-slate-400 text-xs sm:text-sm font-normal ml-1.5">{oppPlayer?.rank}</span>
+            </h1>
+            {gameEndReason && (
+              <span className="text-slate-400 text-xs">{gameEndReason}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {reconnecting ? (
+              <span className="flex items-center gap-1 text-yellow-400 text-xs"><WifiOff className="w-3 h-3" /> Reconnecting…</span>
+            ) : connected ? (
+              <span className="flex items-center gap-1 text-green-400 text-xs"><Wifi className="w-3 h-3" /> Live</span>
+            ) : null}
+            <button onClick={() => router.push('/play')}
+              className="bg-slate-700 hover:bg-slate-600 text-white font-bold h-9 px-3 rounded-lg transition-colors text-sm">
+              ← Leave
+            </button>
+          </div>
         </div>
 
-        {!gameState && (
-          <div className="bg-[#2d2d2d] rounded-lg shadow-lg p-8 max-w-md mx-auto text-center border border-[#3d3d3d]">
-            <div className="w-16 h-16 bg-[#7fa650] rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-white text-3xl">♔</span>
+        {/* ── Opponent disconnected banner ─────────────────────────────────── */}
+        {oppDisconnected && !serverState.gameOver && (
+          <div className="mb-3 bg-yellow-900/30 border border-yellow-700/50 rounded-xl px-4 py-3 flex items-center justify-between">
+            <span className="text-yellow-300 text-sm font-medium">
+              Opponent disconnected — forfeiting in {oppCountdown}s
+            </span>
+            <div className="w-16 h-1.5 bg-chess-bg rounded-full overflow-hidden">
+              <div className="h-full bg-yellow-400 transition-all duration-1000" style={{ width: `${(oppCountdown / 60) * 100}%` }} />
             </div>
-            <div className="text-lg font-semibold text-white mb-2">Connecting to game...</div>
-            <div className="text-sm text-gray-400">Please wait while we join the game</div>
+          </div>
+        )}
+
+        {/* ── Draw offer banner ────────────────────────────────────────────── */}
+        {drawOfferFrom === 'received' && (
+          <div className="mb-3 bg-blue-900/30 border border-blue-700/50 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+            <span className="text-blue-300 text-sm font-medium flex items-center gap-2">
+              <Handshake className="w-4 h-4" /> Opponent offers a draw
+            </span>
+            <div className="flex gap-2">
+              <button onClick={acceptDraw}  className="flex items-center gap-1.5 bg-green-700 hover:bg-green-600 text-white text-sm font-bold h-8 px-3 rounded-lg transition-colors"><Check className="w-3.5 h-3.5" /> Accept</button>
+              <button onClick={declineDraw} className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold h-8 px-3 rounded-lg transition-colors"><X className="w-3.5 h-3.5" /> Decline</button>
+            </div>
+          </div>
+        )}
+        {drawOfferFrom === 'sent' && (
+          <div className="mb-3 bg-blue-900/20 border border-blue-800/30 rounded-xl px-4 py-2 text-blue-400 text-xs text-center">
+            Draw offer sent — waiting for response…
+          </div>
+        )}
+        {drawDeclined && (
+          <div className="mb-3 bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-2 text-red-400 text-xs text-center">
+            Opponent declined the draw offer
           </div>
         )}
 
         {error && (
-          <div className="bg-red-900/30 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg mb-6 max-w-md mx-auto">
+          <div className="mb-3 bg-red-900/30 border border-red-700/50 rounded-xl px-4 py-2 text-red-300 text-sm">
             {error}
           </div>
         )}
 
-        {gameState && (
-          <div className="bg-[#2d2d2d] rounded-lg shadow-lg p-8 border border-[#3d3d3d]">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div className="text-center p-4 bg-[#1a1a1a] rounded-lg border border-[#3d3d3d]">
-                <div className="text-sm text-gray-300 mb-2 font-medium">White Player</div>
-                <div className="text-lg font-bold text-white">
-                  {gameState.whitePlayer}
-                </div>
-                {gameState.yourColor === 'white' && (
-                  <div className="mt-2 text-xs text-[#7fa650] font-semibold">(You)</div>
-                )}
-              </div>
-              <div className="text-center p-4 bg-gradient-to-br from-[#7fa650] to-[#5d7e3a] rounded-lg text-white">
-                <div className="text-sm opacity-90 mb-2">Current Turn</div>
-                <div className="text-xl font-bold">
-                  {gameState.currentTurn === 'w' ? 'White' : 'Black'}
-                </div>
-                {isPlayerTurn && (
-                  <div className="mt-2 text-sm bg-white/20 rounded px-2 py-1 inline-block">
-                    Your turn!
-                  </div>
-                )}
-              </div>
-              <div className="text-center p-4 bg-[#1a1a1a] rounded-lg border border-[#3d3d3d]">
-                <div className="text-sm text-gray-300 mb-2 font-medium">Black Player</div>
-                <div className="text-lg font-bold text-white">
-                  {gameState.blackPlayer}
-                </div>
-                {gameState.yourColor === 'black' && (
-                  <div className="mt-2 text-xs text-[#7fa650] font-semibold">(You)</div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-center mb-6">
-              <div className="w-full max-w-2xl bg-[#1a1a1a] p-4 rounded-lg border border-[#3d3d3d]">
-                <Chessboard
-                  position={gameState.fen}
-                  onPieceDrop={onDrop}
-                  boardOrientation={
-                    gameState.yourColor === 'black' ? 'black' : 'white'
-                  }
-                  arePiecesDraggable={!!(isPlayerTurn && !gameState.gameOver)}
-                  customPieces={getCustomPieces(userPreferences?.pieceSet || 'caliente')}
-                  customDarkSquareStyle={getCustomSquareStyles(userPreferences?.boardStyle || 'canvas2').dark}
-                  customLightSquareStyle={getCustomSquareStyles(userPreferences?.boardStyle || 'canvas2').light}
-                  customBoardStyle={{
-                    borderRadius: '4px',
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
-                  }}
+        <div className="flex flex-col lg:grid lg:grid-cols-12 gap-3 sm:gap-4">
+          {/* ── Board column ──────────────────────────────────────────────── */}
+          <div className="lg:col-span-8">
+            <div className="bg-chess-card border-2 border-chess-border rounded-xl p-3 sm:p-5">
+              {/* Opponent header */}
+              <div className="mb-2">
+                <PlayerHeader
+                  playerName={oppPlayer?.name ?? 'Opponent'}
+                  rank={oppPlayer?.rank}
+                  capturedPieces={userColor === 'white' ? capturedBlack : capturedWhite}
+                  isActive={!isUserTurn && !serverState.gameOver}
+                  timeLeft={userColor === 'white' ? blackTimeSec : whiteTimeSec}
+                  increment={increment}
+                  pieceSet={dbUser?.pieceSet}
                 />
               </div>
-            </div>
 
-            {gameState.gameOver && !showGameOver && (
-              <div className="text-center p-4 bg-gradient-to-br from-[#7fa650] to-[#5d7e3a] text-white rounded-lg">
-                <div className="text-xl font-semibold">
-                  Game Over - {gameState.result === 'WHITE_WIN' ? 'White Wins' : gameState.result === 'BLACK_WIN' ? 'Black Wins' : 'Draw'}
-                </div>
+              {/* Board + eval bar */}
+              <div className="flex items-center justify-center gap-2 sm:gap-3 my-2 sm:my-4">
+                {isReady && (
+                  <EvalBar
+                    evaluation={currentEval?.score ?? null}
+                    isMate={currentEval?.isMate}
+                    mateIn={currentEval?.mateIn ?? null}
+                  />
+                )}
+                <motion.div animate={shakeControls} className="w-full aspect-square max-w-full">
+                  <CustomBoard
+                    position={displayFen}
+                    onPieceDrop={onDrop}
+                    onSquareClick={onSquareClick}
+                    onSquareRightClick={() => clearPremove()}
+                    arePiecesDraggable={!serverState.gameOver && isUserTurn}
+                    boardOrientation={userColor}
+                    equippedBoardUrl={equippedBoardUrl}
+                    equippedPieceSet={equippedPieceSet}
+                    customSquareStyles={premoveStyles}
+                    customBoardStyle={{ borderRadius: '4px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', width: '100%' }}
+                  />
+                </motion.div>
               </div>
-            )}
-          </div>
-        )}
 
-        <GameOverModal
-          isOpen={showGameOver}
-          result={gameState?.result || ''}
-          yourColor={gameState?.yourColor || 'white'}
-          whitePlayer={gameState?.whitePlayer || ''}
-          blackPlayer={gameState?.blackPlayer || ''}
-          onClose={() => setShowGameOver(false)}
+              {/* My header */}
+              <div className="mt-2">
+                <PlayerHeader
+                  playerName={dbUser?.name ?? 'You'}
+                  rank={dbUser?.rank}
+                  points={dbUser?.currentPoints}
+                  capturedPieces={userColor === 'white' ? capturedWhite : capturedBlack}
+                  isActive={isUserTurn && !serverState.gameOver}
+                  timeLeft={userColor === 'white' ? whiteTimeSec : blackTimeSec}
+                  increment={increment}
+                  pieceSet={dbUser?.pieceSet}
+                />
+              </div>
+
+              {/* Status line */}
+              <div className="text-center mt-2 h-5">
+                {serverState.gameOver ? (
+                  <p className="text-white font-semibold text-sm">Game Over</p>
+                ) : chess.isCheck() ? (
+                  <p className="text-pawn-gold font-semibold text-sm">⚠ Check!</p>
+                ) : (premove || premoveFrom) ? (
+                  <p className="text-red-400 text-xs">Premove set · right-click to cancel</p>
+                ) : !isUserTurn ? (
+                  <p className="text-slate-500 text-xs">Waiting for {oppPlayer?.name}…</p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Sidebar ───────────────────────────────────────────────────── */}
+          <div className="lg:col-span-4">
+            <div className="bg-chess-card border-2 border-chess-border rounded-xl lg:min-h-[500px]">
+              <GameControlPanel
+                chess={chess}
+                onPositionChange={(fen) => setDisplayFen(fen)}
+                onResign={onResign}
+                onDrawOffer={onDrawOffer}
+                isGameActive={!serverState.gameOver}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Victory Modal ────────────────────────────────────────────────── */}
+        <VictoryModal
+          isOpen={showVictoryModal}
+          result={gameResult ?? 'draw'}
+          botName={oppPlayer?.name ?? 'Opponent'}
+          gameId={gameId}
+          mmrBefore={mmrBefore}
+          mmrAfter={mmrAfter}
+          gamesInCycleBefore={gamesInCycleBefore}
+          gamesInCycleAfter={gamesInCycleAfter}
+          isAnalyzing={isAnalyzing}
+          analysisProgress={analysisProgress}
+          counts={analysisResult?.counts ?? null}
+          onClose={() => setShowVictoryModal(false)}
+          onNewGame={() => router.push('/play')}
         />
       </div>
     </div>

@@ -1,90 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { getUserFromToken } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import bcrypt from 'bcryptjs'
 
+/**
+ * POST /api/user/settings
+ * Updates display name, pieceSet, and boardStyle.
+ * Password management is handled entirely by Clerk.
+ */
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth()
-    if (!userId) return new NextResponse('Unauthorized', { status: 401 })
-
-    const token = request.cookies.get('auth-token')?.value
-
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      )
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await getUserFromToken(token)
+    const user = await prisma.user.findUnique({
+      where: { clerk_id: userId },
+      select: { id: true },
+    })
+
     if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const { name, currentPassword, newPassword, pieceSet, boardStyle } = await request.json()
+    const { name, pieceSet, boardStyle } = await request.json()
 
-    // Validate name
-    if (!name || name.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Name is required' },
-        { status: 400 }
-      )
-    }
-
-    // If changing password, validate current password
-    if (newPassword) {
-      if (!currentPassword) {
-        return NextResponse.json(
-          { error: 'Current password is required to change password' },
-          { status: 400 }
-        )
-      }
-
-      if (!user.password) {
-        return NextResponse.json(
-          { error: 'This account does not use a password (e.g., signed in via Google) or no password is set.' },
-          { status: 400 }
-        )
-      }
-
-      // Verify current password
-      const isValid = await bcrypt.compare(currentPassword, user.password)
-      if (!isValid) {
-        return NextResponse.json(
-          { error: 'Current password is incorrect' },
-          { status: 400 }
-        )
-      }
-
-      // Validate new password
-      if (newPassword.length < 6) {
-        return NextResponse.json(
-          { error: 'New password must be at least 6 characters' },
-          { status: 400 }
-        )
-      }
-    }
-
-    // Update user
-    const updateData: any = {
-      name: name.trim(),
-      pieceSet: pieceSet || 'caliente',
-      boardStyle: boardStyle || 'canvas2',
-    }
-
-    if (newPassword) {
-      const hashedPassword = await bcrypt.hash(newPassword, 10)
-      updateData.password = hashedPassword
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: updateData,
+      data: {
+        name: name.trim(),
+        pieceSet: pieceSet || 'caliente',
+        boardStyle: boardStyle || 'canvas2',
+      },
       select: {
         id: true,
         name: true,
@@ -94,10 +45,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({
-      success: true,
-      user: updatedUser,
-    })
+    return NextResponse.json({ success: true, user: updatedUser })
   } catch (error) {
     console.error('Error updating user settings:', error)
     return NextResponse.json(

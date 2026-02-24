@@ -12,10 +12,9 @@ datasource db {
 
 model User {
   id                    String         @id @default(cuid())
-  clerk_id              String?        @unique // Clerk OAuth; null for email/password users
+  clerk_id              String         @unique
   name                  String
   email                 String         @unique
-  password              String?        // hashed; only for email/password users (Clerk users leave null)
   rank                  String         @default("Beginner")
   currentPoints         Float          @default(0)
   gamesPlayedInCycle    Int            @default(0)
@@ -23,6 +22,7 @@ model User {
   pieceSet              String         @default("caliente")
   boardStyle            String         @default("canvas2")
   pawns                 Int            @default(0)
+  xp                    Int            @default(0)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 
@@ -48,11 +48,16 @@ model Game {
   blackPlayerId String
   result        GameResult?
   isOnline      Boolean    @default(false)
+  moves         String?
   date          DateTime   @default(now())
 
   whitePlayer   User      @relation("WhitePlayer", fields: [whitePlayerId], references: [id])
   blackPlayer   User      @relation("BlackPlayer", fields: [blackPlayerId], references: [id])
 
+  @@index([whitePlayerId])
+  @@index([blackPlayerId])
+  @@index([date])
+  @@index([result])
   @@map("games")
 }
 
@@ -144,6 +149,7 @@ model UserCosmetic {
   cosmetic    Cosmetic  @relation(fields: [cosmeticId], references: [id], onDelete: Cascade)
 
   @@unique([userId, cosmeticId])
+  @@index([userId])
   @@map("user_cosmetics")
 }
 

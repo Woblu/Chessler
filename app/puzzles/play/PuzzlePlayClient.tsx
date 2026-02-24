@@ -7,6 +7,7 @@ import { Chess, type Square } from 'chess.js'
 import { getRandomPuzzleByTheme } from '@/actions/puzzles'
 import { awardPawns } from '@/actions/economy'
 import { getCustomPieces, getCustomSquareStyles } from '@/lib/chess-customization'
+import { useDbUser } from '@/app/context/UserContext'
 
 interface Puzzle {
   id: string
@@ -20,6 +21,7 @@ interface Puzzle {
 function PuzzlePlayPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { dbUser } = useDbUser()
   const theme = searchParams.get('theme') || 'mate'
 
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
@@ -33,36 +35,12 @@ function PuzzlePlayPageInner() {
   const [loading, setLoading] = useState(true)
   const [flashRed, setFlashRed] = useState(false)
   const [flashGreen, setFlashGreen] = useState(false)
-  const [userPreferences, setUserPreferences] = useState<{ pieceSet: string; boardStyle: string } | null>(null)
-  const [userId, setUserId] = useState<string | null>(null)
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null)
   const [validMoves, setValidMoves] = useState<Square[]>([])
   const [minRating, setMinRating] = useState(800)
   const [maxRating, setMaxRating] = useState(1500)
 
   const chessRef = useRef<Chess | null>(null)
-
-  // Fetch user preferences
-  useEffect(() => {
-    const fetchPreferences = async () => {
-      try {
-        const response = await fetch('/api/auth/me')
-        if (response.ok) {
-          const data = await response.json()
-          if (data.user) {
-            setUserPreferences({
-              pieceSet: data.user.pieceSet || 'caliente',
-              boardStyle: data.user.boardStyle || 'canvas2',
-            })
-            setUserId(data.user.id)
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching user preferences:', error)
-      }
-    }
-    fetchPreferences()
-  }, [])
 
   // Load puzzle when theme or rating range changes
   useEffect(() => {
@@ -288,17 +266,17 @@ function PuzzlePlayPageInner() {
   }
 
   const handlePuzzleSolved = async () => {
-    if (!puzzle || !userId) return
+    if (!puzzle || !dbUser?.id) return
 
     setShowSuccessModal(true)
 
     // Award pawns
     try {
-      await awardPawns(userId, puzzle.pawnReward, 'puzzle_solved')
+      await awardPawns(dbUser!.id, puzzle.pawnReward, 'puzzle_solved')
       
       // Evaluate quests for puzzle solved
       const { evaluateQuests } = await import('@/actions/quests')
-      await evaluateQuests(userId, 'PUZZLE_SOLVED', 1).catch((error) => {
+      await evaluateQuests(dbUser!.id, 'PUZZLE_SOLVED', 1).catch((error) => {
         console.error('Error evaluating quests for puzzle:', error)
       })
     } catch (error) {
@@ -434,9 +412,9 @@ function PuzzlePlayPageInner() {
                   return acc
                 }, {} as Record<string, any>),
               }}
-              customPieces={userPreferences ? getCustomPieces(userPreferences.pieceSet) : getCustomPieces('caliente')}
-              customDarkSquareStyle={userPreferences ? getCustomSquareStyles(userPreferences.boardStyle).dark : getCustomSquareStyles('canvas2').dark}
-              customLightSquareStyle={userPreferences ? getCustomSquareStyles(userPreferences.boardStyle).light : getCustomSquareStyles('canvas2').light}
+              customPieces={getCustomPieces(dbUser?.pieceSet || 'caliente')}
+              customDarkSquareStyle={getCustomSquareStyles(dbUser?.boardStyle || 'canvas2').dark}
+              customLightSquareStyle={getCustomSquareStyles(dbUser?.boardStyle || 'canvas2').light}
               customBoardStyle={{
                 borderRadius: '4px',
                 boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',

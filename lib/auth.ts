@@ -36,7 +36,6 @@ export async function getUserFromToken(token: string) {
       clerk_id: true,
       name: true,
       email: true,
-      password: true,
       rank: true,
       currentPoints: true,
       gamesPlayedInCycle: true,

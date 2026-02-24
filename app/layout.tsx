@@ -1,12 +1,42 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
+import dynamic from 'next/dynamic'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import Navbar from '@/components/Navbar'
-import SocialWidget from '@/components/SocialWidget'
+import { UserProvider } from '@/app/context/UserContext'
+
+// Deferred — not needed on first paint
+const SocialWidget = dynamic(() => import('@/components/SocialWidget'), { ssr: false })
+
+const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter' })
 
 export const metadata: Metadata = {
-  title: 'Chessler - Play & Rank',
-  description: 'Chess ranking and statistics dashboard',
+  title: 'Rookly – Play & Rank Chess',
+  description: 'Play chess, climb the ranks, and conquer the World Chess Tour.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Rookly',
+  },
+  icons: {
+    icon: '/rooklysmall.png',
+    apple: '/rooklysmall.png',
+  },
+  openGraph: {
+    title: 'Rookly – Play & Rank Chess',
+    description: 'Play chess, climb the ranks, and conquer the World Chess Tour.',
+    type: 'website',
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#0f172a',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({
@@ -16,11 +46,23 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider>
-      <html lang="en">
+      <html lang="en" className={inter.variable}>
+        <head>
+          {/* PWA manifest & Apple touch icon */}
+          <link rel="manifest" href="/manifest.json" />
+          <link rel="apple-touch-icon" href="/rooklysmall.png" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+          <meta name="apple-mobile-web-app-title" content="Rookly" />
+          <meta name="mobile-web-app-capable" content="yes" />
+          <meta name="theme-color" content="#0f172a" />
+        </head>
         <body>
-          <Navbar />
-          {children}
-          <SocialWidget />
+          <UserProvider>
+            <Navbar />
+            {children}
+            <SocialWidget />
+          </UserProvider>
         </body>
       </html>
     </ClerkProvider>

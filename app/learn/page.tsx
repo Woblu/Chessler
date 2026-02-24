@@ -1,3 +1,6 @@
+// Opening catalogue is static data — revalidate every hour
+export const revalidate = 3600
+
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'

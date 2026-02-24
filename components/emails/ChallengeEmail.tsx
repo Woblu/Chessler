@@ -43,7 +43,7 @@ export default function ChallengeEmail({
             </Section>
             <Hr style={hr} />
             <Text style={footer}>
-              This challenge was sent from Chessler. Good luck!
+              This challenge was sent from Rookly. Good luck!
             </Text>
           </Section>
         </Container>

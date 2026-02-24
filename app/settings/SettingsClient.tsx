@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 
 interface User {
   id: string
@@ -9,6 +8,10 @@ interface User {
   email: string
   pieceSet: string
   boardStyle: string
+}
+
+interface Props {
+  initialUser: User
 }
 
 // Available piece sets (should match folder names in /public/pieces/)
@@ -33,50 +36,19 @@ const BOARD_STYLES = [
   { id: 'wood4', name: 'Wood 4', image: 'wood4.jpg' },
 ]
 
-export default function SettingsPage() {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+export default function SettingsPage({ initialUser }: Props) {
+  const [user, setUser] = useState<User>(initialUser)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const router = useRouter()
 
   const [formData, setFormData] = useState({
-    name: '',
+    name: initialUser.name,
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
-    pieceSet: 'default',
-    boardStyle: 'default',
+    pieceSet: initialUser.pieceSet || 'caliente',
+    boardStyle: initialUser.boardStyle || 'canvas2',
   })
-
-  useEffect(() => {
-    fetchUser()
-  }, [])
-
-  const fetchUser = async () => {
-    try {
-      const response = await fetch('/api/auth/me')
-      if (!response.ok) {
-        router.push('/login')
-        return
-      }
-      const data = await response.json()
-      setUser(data.user)
-      setFormData({
-        name: data.user.name,
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
-    pieceSet: data.user.pieceSet || 'caliente',
-    boardStyle: data.user.boardStyle || 'canvas2',
-      })
-    } catch (error) {
-      console.error('Error fetching user:', error)
-      router.push('/login')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -130,18 +102,6 @@ export default function SettingsPage() {
     } finally {
       setSaving(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-chess-bg flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-pawn-gold border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return null
   }
 
   return (

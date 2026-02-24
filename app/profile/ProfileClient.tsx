@@ -1,9 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import Link from 'next/link'
-import { getUserStats } from '@/actions/profile'
 import { GiVisoredHelm, GiTrophy, GiCompass, GiBrain } from 'react-icons/gi'
 import {
   AreaChart,
@@ -34,43 +32,12 @@ interface UserStats {
   }>
 }
 
-export default function ProfilePage() {
-  const [stats, setStats] = useState<UserStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
+interface Props {
+  initialStats: UserStats | null
+}
 
-  useEffect(() => {
-    fetchStats()
-  }, [])
-
-  const fetchStats = async () => {
-    try {
-      const response = await fetch('/api/auth/me')
-      if (!response.ok) {
-        router.push('/login')
-        return
-      }
-      const data = await response.json()
-      const userId = data.user.id
-
-      const userStats = await getUserStats(userId)
-      if (userStats) {
-        setStats(userStats)
-      }
-    } catch (error) {
-      console.error('Error fetching stats:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-chess-bg flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-pawn-gold border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    )
-  }
+export default function ProfilePage({ initialStats }: Props) {
+  const [stats] = useState<UserStats | null>(initialStats)
 
   if (!stats) {
     return (
@@ -85,21 +52,21 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-chess-bg">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Top Banner */}
-        <div className="bg-chess-card rounded-xl shadow-lg p-8 mb-6 border border-chess-border">
-          <div className="flex items-center gap-6">
-            <div className="w-24 h-24 bg-gradient-to-br from-pawn-gold to-pawn-gold-hover rounded-full flex items-center justify-center">
-              <GiVisoredHelm className="text-6xl text-slate-900 drop-shadow-md" />
+        <div className="bg-chess-card rounded-xl shadow-lg p-4 sm:p-8 mb-4 sm:mb-6 border border-chess-border">
+          <div className="flex items-center gap-4 sm:gap-6">
+            <div className="w-16 h-16 sm:w-24 sm:h-24 shrink-0 bg-gradient-to-br from-pawn-gold to-pawn-gold-hover rounded-full flex items-center justify-center">
+              <GiVisoredHelm className="text-4xl sm:text-6xl text-slate-900 drop-shadow-md" />
             </div>
-            <div className="flex-1">
-              <h1 className="text-4xl font-extrabold text-white mb-2">{stats.user.name}</h1>
-              <div className="flex items-center gap-4">
-                <div className="inline-block bg-gradient-to-br from-pawn-gold to-pawn-gold-hover text-slate-900 px-6 py-2 rounded-lg">
-                  <div className="text-sm opacity-90">Current Rank</div>
-                  <div className="text-2xl font-bold">{stats.user.rank}</div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl sm:text-4xl font-extrabold text-white mb-1 sm:mb-2 truncate">{stats.user.name}</h1>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                <div className="inline-block bg-gradient-to-br from-pawn-gold to-pawn-gold-hover text-slate-900 px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg">
+                  <div className="text-xs sm:text-sm opacity-90">Current Rank</div>
+                  <div className="text-lg sm:text-2xl font-bold">{stats.user.rank}</div>
                 </div>
-                <div className="text-slate-300">
+                <div className="text-slate-300 text-sm sm:text-base">
                   <span className="font-semibold text-white">{stats.user.totalGames}</span> Total Games
                 </div>
               </div>
@@ -108,7 +75,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 mb-4 sm:mb-6">
           {/* Win Rate Card */}
           <div className="bg-chess-card rounded-xl shadow-lg p-6 border border-chess-border">
             <div className="flex items-center justify-between mb-4">

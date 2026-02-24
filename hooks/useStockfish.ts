@@ -2,122 +2,112 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 
-export interface StockfishMessage {
-  type: 'bestmove' | 'info' | 'readyok' | 'error'
-  bestmove?: string
-  ponder?: string
-  depth?: number
-  score?: number
-  message?: string
-}
-
 export interface Evaluation {
-  score: number // in centipawns
+  score: number
   isMate: boolean
-  mateIn: number | null // number of moves to mate (positive = white mates, negative = black mates)
+  mateIn: number | null
 }
 
 export interface UseStockfishReturn {
   isReady: boolean
   isThinking: boolean
   sendCommand: (command: string) => void
-  getBestMove: (fen: string, depth: number) => Promise<string | null>
+  getBestMove: (fen: string, depth: number, moveTimeMs?: number) => Promise<string | null>
   getEvaluation: (fen: string, depth: number) => Promise<Evaluation | null>
   error: string | null
 }
 
+type PendingKind = 'bestmove' | 'eval' | null
+
+/**
+ * useStockfish — communicates with the /stockfish.js web worker.
+ *
+ * Key guarantees:
+ *  • Evaluation resolves at `bestmove`, not at the first `info score` line,
+ *    so the reported score comes from the deepest completed search ply.
+ *  • Only one `go` command is in-flight at a time; new requests send `stop`
+ *    first to abort the running search and prevent response collisions.
+ *  • getBestMove accepts an optional `moveTimeMs` cap for mobile performance.
+ */
 export function useStockfish(): UseStockfishReturn {
-  const workerRef = useRef<Worker | null>(null)
-  const [isReady, setIsReady] = useState(false)
+  const workerRef       = useRef<Worker | null>(null)
+  const [isReady, setIsReady]       = useState(false)
   const [isThinking, setIsThinking] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const pendingResolveRef = useRef<((move: string | null) => void) | null>(null)
-  const pendingEvalResolveRef = useRef<((evalResult: Evaluation | null) => void) | null>(null)
-  const currentEvalRef = useRef<Evaluation | null>(null)
+  const [error, setError]           = useState<string | null>(null)
+
+  // Pending resolution callbacks
+  const pendingMoveRef  = useRef<((v: string | null) => void) | null>(null)
+  const pendingEvalRef  = useRef<((v: Evaluation | null) => void) | null>(null)
+  const pendingKindRef  = useRef<PendingKind>(null)
+
+  // Accumulated eval from the most recent info lines
+  const accumEvalRef    = useRef<Evaluation | null>(null)
+
+  // Guards
+  const isBusyRef       = useRef(false)
+  const isReadyRef      = useRef(false)
+
+  // ─── Worker setup ──────────────────────────────────────────────────────────
 
   useEffect(() => {
-    // Initialize Web Worker
+    let worker: Worker
     try {
-      const worker = new Worker('/stockfish.js')
+      worker = new Worker('/stockfish.js')
       workerRef.current = worker
 
       worker.onmessage = (e: MessageEvent<string>) => {
-        const message = e.data.trim()
-        
-        // Handle readyok
-        if (message === 'uciok' || message.includes('readyok')) {
+        const msg = e.data.trim()
+
+        // ── Ready ──────────────────────────────────────────────────────────
+        if (msg === 'uciok' || msg.includes('readyok')) {
+          isReadyRef.current = true
           setIsReady(true)
           setError(null)
           return
         }
 
-        // Handle info messages with evaluation
-        if (message.startsWith('info')) {
-          // Parse evaluation from info message
-          // Format: "info depth X score cp Y" or "info depth X score mate Y"
-          const scoreMatch = message.match(/score (cp|mate) (-?\d+)/)
-          if (scoreMatch) {
-            const scoreType = scoreMatch[1]
-            const scoreValue = parseInt(scoreMatch[2], 10)
-            
-            if (scoreType === 'cp') {
-              // Centipawns: positive = white advantage, negative = black advantage
-              currentEvalRef.current = {
-                score: scoreValue,
-                isMate: false,
-                mateIn: null,
-              }
-            } else if (scoreType === 'mate') {
-              // Mate: positive = white mates in X, negative = black mates in X
-              currentEvalRef.current = {
-                score: scoreValue > 0 ? 10000 : -10000, // Large value for mate
-                isMate: true,
-                mateIn: scoreValue,
-              }
-            }
-            
-            // Resolve pending evaluation request if we have a complete evaluation
-            if (pendingEvalResolveRef.current && currentEvalRef.current) {
-              pendingEvalResolveRef.current(currentEvalRef.current)
-              pendingEvalResolveRef.current = null
-              currentEvalRef.current = null
-            }
+        // ── Info lines — accumulate but do not resolve yet ─────────────────
+        if (msg.startsWith('info')) {
+          const cpMatch   = msg.match(/score cp (-?\d+)/)
+          const mateMatch = msg.match(/score mate (-?\d+)/)
+          if (cpMatch) {
+            accumEvalRef.current = { score: parseInt(cpMatch[1]), isMate: false, mateIn: null }
+          } else if (mateMatch) {
+            const mv = parseInt(mateMatch[1])
+            accumEvalRef.current = { score: mv > 0 ? 10000 : -10000, isMate: true, mateIn: mv }
           }
           return
         }
 
-        // Handle bestmove
-        if (message.startsWith('bestmove')) {
+        // ── bestmove — resolve whichever request is pending ────────────────
+        if (msg.startsWith('bestmove')) {
           setIsThinking(false)
-          const parts = message.split(' ')
-          const bestmove = parts[1]
-          
-          if (bestmove && bestmove !== '(none)') {
-            if (pendingResolveRef.current) {
-              pendingResolveRef.current(bestmove)
-              pendingResolveRef.current = null
-            }
-          } else {
-            if (pendingResolveRef.current) {
-              pendingResolveRef.current(null)
-              pendingResolveRef.current = null
-            }
+          isBusyRef.current = false
+
+          const bm = msg.split(' ')[1]
+          const bestMove = (bm && bm !== '(none)') ? bm : null
+
+          if (pendingKindRef.current === 'bestmove' && pendingMoveRef.current) {
+            pendingMoveRef.current(bestMove)
+            pendingMoveRef.current = null
           }
+          if (pendingKindRef.current === 'eval' && pendingEvalRef.current) {
+            pendingEvalRef.current(accumEvalRef.current)
+            pendingEvalRef.current = null
+          }
+          pendingKindRef.current = null
+          accumEvalRef.current   = null
           return
         }
 
-        // Handle errors
-        if (message.includes('error') || message.includes('Error')) {
-          setError(message)
+        // ── Engine errors ──────────────────────────────────────────────────
+        if (msg.toLowerCase().includes('error')) {
+          setError(msg)
           setIsThinking(false)
-          if (pendingResolveRef.current) {
-            pendingResolveRef.current(null)
-            pendingResolveRef.current = null
-          }
-          if (pendingEvalResolveRef.current) {
-            pendingEvalResolveRef.current(null)
-            pendingEvalResolveRef.current = null
-          }
+          isBusyRef.current = false
+          pendingMoveRef.current?.(null);  pendingMoveRef.current = null
+          pendingEvalRef.current?.(null);  pendingEvalRef.current = null
+          pendingKindRef.current = null
         }
       }
 
@@ -125,99 +115,126 @@ export function useStockfish(): UseStockfishReturn {
         console.error('Stockfish worker error:', err)
         setError('Stockfish worker error')
         setIsReady(false)
+        isReadyRef.current = false
+        isBusyRef.current  = false
         setIsThinking(false)
-        if (pendingResolveRef.current) {
-          pendingResolveRef.current(null)
-          pendingResolveRef.current = null
-        }
+        pendingMoveRef.current?.(null)
+        pendingEvalRef.current?.(null)
+        pendingMoveRef.current = pendingEvalRef.current = null
+        pendingKindRef.current = null
       }
 
-      // Initialize UCI
       worker.postMessage('uci')
       worker.postMessage('isready')
-
-      return () => {
-        if (workerRef.current) {
-          workerRef.current.terminate()
-          workerRef.current = null
-        }
-      }
     } catch (err) {
-      console.error('Failed to initialize Stockfish:', err)
+      console.error('Failed to init Stockfish:', err)
       setError('Failed to initialize Stockfish worker')
-      setIsReady(false)
+    }
+
+    return () => {
+      worker?.terminate()
+      workerRef.current = null
     }
   }, [])
 
-  const sendCommand = useCallback((command: string) => {
-    if (workerRef.current && isReady) {
-      workerRef.current.postMessage(command)
-    } else {
-      console.warn('Stockfish not ready, command ignored:', command)
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+
+  /** Stop an in-flight search and clear pending state synchronously. */
+  const abortCurrent = useCallback(() => {
+    if (isBusyRef.current && workerRef.current) {
+      workerRef.current.postMessage('stop')
     }
-  }, [isReady])
+    pendingMoveRef.current?.(null);  pendingMoveRef.current = null
+    pendingEvalRef.current?.(null);  pendingEvalRef.current = null
+    pendingKindRef.current = null
+    accumEvalRef.current   = null
+    isBusyRef.current      = false
+    setIsThinking(false)
+  }, [])
 
-  const getBestMove = useCallback((fen: string, depth: number): Promise<string | null> => {
-    return new Promise((resolve) => {
-      if (!workerRef.current || !isReady) {
-        resolve(null)
-        return
-      }
+  // ─── Public API ────────────────────────────────────────────────────────────
 
-      setIsThinking(true)
-      setError(null)
-      pendingResolveRef.current = resolve
+  const sendCommand = useCallback((cmd: string) => {
+    if (workerRef.current && isReadyRef.current) {
+      workerRef.current.postMessage(cmd)
+    }
+  }, [])
 
-      // Set position and calculate best move
-      workerRef.current.postMessage(`position fen ${fen}`)
-      workerRef.current.postMessage(`go depth ${depth}`)
+  /**
+   * Ask Stockfish for the best move at a position.
+   * `moveTimeMs` caps the search time in milliseconds (good for mobile).
+   */
+  const getBestMove = useCallback(
+    (fen: string, depth: number, moveTimeMs?: number): Promise<string | null> => {
+      return new Promise((resolve) => {
+        if (!workerRef.current || !isReadyRef.current) { resolve(null); return }
 
-      // Timeout after 10 seconds
-      setTimeout(() => {
-        if (pendingResolveRef.current === resolve) {
-          setIsThinking(false)
-          pendingResolveRef.current = null
+        abortCurrent()
+        isBusyRef.current       = true
+        pendingKindRef.current  = 'bestmove'
+        pendingMoveRef.current  = resolve
+        accumEvalRef.current    = null
+        setIsThinking(true)
+        setError(null)
+
+        workerRef.current.postMessage(`position fen ${fen}`)
+        if (moveTimeMs) {
+          workerRef.current.postMessage(`go depth ${depth} movetime ${moveTimeMs}`)
+        } else {
+          workerRef.current.postMessage(`go depth ${depth}`)
+        }
+
+        // Hard timeout fallback
+        const deadline = (moveTimeMs ?? 12000) + 3000
+        setTimeout(() => {
+          if (pendingMoveRef.current === resolve) {
+            abortCurrent()
+            resolve(null)
+          }
+        }, deadline)
+      })
+    },
+    [abortCurrent]
+  )
+
+  /**
+   * Evaluate a position.
+   * Resolves ONLY after the `bestmove` response so the score reflects the
+   * deepest completed depth, not the first intermediate info line.
+   */
+  const getEvaluation = useCallback(
+    (fen: string, depth: number): Promise<Evaluation | null> => {
+      return new Promise((resolve) => {
+        if (!workerRef.current || !isReadyRef.current) { resolve(null); return }
+
+        // Skip if engine is already calculating a best move for the bot
+        if (isBusyRef.current && pendingKindRef.current === 'bestmove') {
           resolve(null)
+          return
         }
-      }, 10000)
-    })
-  }, [isReady])
 
-  const getEvaluation = useCallback((fen: string, depth: number): Promise<Evaluation | null> => {
-    return new Promise((resolve) => {
-      if (!workerRef.current || !isReady) {
-        resolve(null)
-        return
-      }
+        abortCurrent()
+        isBusyRef.current       = true
+        pendingKindRef.current  = 'eval'
+        pendingEvalRef.current  = resolve
+        accumEvalRef.current    = null
 
-      setError(null)
-      pendingEvalResolveRef.current = resolve
-      currentEvalRef.current = null
+        workerRef.current.postMessage(`position fen ${fen}`)
+        workerRef.current.postMessage(`go depth ${depth} movetime 2000`)
 
-      // Set position and get evaluation
-      workerRef.current.postMessage(`position fen ${fen}`)
-      workerRef.current.postMessage(`go depth ${depth}`)
+        setTimeout(() => {
+          if (pendingEvalRef.current === resolve) {
+            pendingEvalRef.current = null
+            isBusyRef.current      = false
+            pendingKindRef.current = null
+            resolve(accumEvalRef.current)
+            accumEvalRef.current   = null
+          }
+        }, 5000)
+      })
+    },
+    [abortCurrent]
+  )
 
-      // Wait for evaluation from info messages
-      // The existing message handler will capture the evaluation and resolve
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        if (pendingEvalResolveRef.current === resolve) {
-          pendingEvalResolveRef.current = null
-          // Return the last evaluation we received, or null if none
-          resolve(currentEvalRef.current)
-          currentEvalRef.current = null
-        }
-      }, 5000)
-    })
-  }, [isReady])
-
-  return {
-    isReady,
-    isThinking,
-    sendCommand,
-    getBestMove,
-    getEvaluation,
-    error,
-  }
+  return { isReady, isThinking, sendCommand, getBestMove, getEvaluation, error }
 }

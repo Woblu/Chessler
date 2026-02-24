@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Chessboard } from 'react-chessboard'
 import { Chess, type Square } from 'chess.js'
 import { getCustomPieces, getCustomSquareStyles } from '@/lib/chess-customization'
+import { useDbUser } from '@/app/context/UserContext'
 
 interface LineData {
   line: string[]
@@ -17,6 +18,7 @@ interface LineData {
 export default function LearnOpeningPage() {
   const params = useParams()
   const router = useRouter()
+  const { dbUser } = useDbUser()
   const openingId = params.openingId as string
 
   const [lineData, setLineData] = useState<LineData | null>(null)
@@ -27,32 +29,13 @@ export default function LearnOpeningPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [isUserTurn, setIsUserTurn] = useState(true)
   const [isOpponentMoving, setIsOpponentMoving] = useState(false)
-  const [userPreferences, setUserPreferences] = useState<{ pieceSet: string; boardStyle: string } | null>(null)
 
   const chessRef = useRef(new Chess())
   const [fen, setFen] = useState(new Chess().fen())
 
   useEffect(() => {
-    fetchUserPreferences()
     fetchNextLine()
   }, [openingId])
-
-  const fetchUserPreferences = async () => {
-    try {
-      const response = await fetch('/api/auth/me')
-      if (response.ok) {
-        const data = await response.json()
-        if (data.user) {
-          setUserPreferences({
-            pieceSet: data.user.pieceSet || 'caliente',
-            boardStyle: data.user.boardStyle || 'canvas2',
-          })
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching user preferences:', err)
-    }
-  }
 
   const fetchNextLine = async () => {
     try {
@@ -248,9 +231,9 @@ export default function LearnOpeningPage() {
                 position={fen}
                 onPieceDrop={onDrop}
                 arePiecesDraggable={!!(!lineCompleted && isUserTurn && !isOpponentMoving && lineData && currentMoveIndex < lineData.line.length)}
-                customPieces={getCustomPieces(userPreferences?.pieceSet || 'caliente')}
-                customDarkSquareStyle={getCustomSquareStyles(userPreferences?.boardStyle || 'canvas2').dark}
-                customLightSquareStyle={getCustomSquareStyles(userPreferences?.boardStyle || 'canvas2').light}
+                customPieces={getCustomPieces(dbUser?.pieceSet || 'caliente')}
+                customDarkSquareStyle={getCustomSquareStyles(dbUser?.boardStyle || 'canvas2').dark}
+                customLightSquareStyle={getCustomSquareStyles(dbUser?.boardStyle || 'canvas2').light}
                 customBoardStyle={{
                   borderRadius: '4px',
                   boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',

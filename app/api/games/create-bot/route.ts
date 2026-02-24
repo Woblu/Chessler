@@ -2,36 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 import { GameResult } from '@prisma/client'
-import { getUserFromToken } from '@/lib/auth'
 import { processGameResult } from '@/lib/ranking'
+import { XP_GAIN } from '@/lib/analysis'
 
 /**
- * Creates a bot game and processes the result
- * Bot games use a special "Bot" user that should exist in the database
+ * POST /api/games/create-bot
+ * Records the result of a bot game, saves moves, awards XP, and returns
+ * both the before/after MMR (currentPoints) and cycle counters.
  */
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth()
-    if (!userId) return new NextResponse('Unauthorized', { status: 401 })
-
-    const token = request.cookies.get('auth-token')?.value
-
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      )
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await getUserFromToken(token)
+    const user = await prisma.user.findUnique({
+      where: { clerk_id: userId },
+      select: { id: true, xp: true, currentPoints: true, gamesPlayedInCycle: true },
+    })
+
     if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const { result, botName } = await request.json()
+    const { result, botName, botElo, botDepth, moves } = await request.json()
 
     if (!result || !['win', 'loss', 'draw'].includes(result)) {
       return NextResponse.json(
@@ -40,61 +35,78 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Find or create a bot user
-    // For simplicity, we'll use a single "Bot" user for all bot games
-    let botUser = await prisma.user.findUnique({
-      where: { email: 'bot@system.local' },
-    })
+    // Snapshot values BEFORE the game is processed
+    const mmrBefore = user.currentPoints
+    const gamesInCycleBefore = user.gamesPlayedInCycle
+    const xpBefore = user.xp
 
+    // Find or create the system bot user
+    const botEmail = 'bot@system.local'
+    let botUser = await prisma.user.findUnique({ where: { email: botEmail } })
     if (!botUser) {
-      // Create bot user if it doesn't exist
       botUser = await prisma.user.create({
         data: {
-          name: 'Bot',
-          email: 'bot@system.local',
-          password: 'bot', // Not used for authentication
-          rank: 'Beginner',
+          clerk_id: `bot_system_${Date.now()}`,
+          name: botName || 'Bot',
+          email: botEmail,
+          rank: 'Bot',
         },
       })
     }
 
-    // Determine game result from user's perspective
     let gameResult: GameResult = GameResult.DRAW
-    const userIsWhite = true // User always plays white in bot games
+    if (result === 'win') gameResult = GameResult.WHITE_WIN
+    else if (result === 'loss') gameResult = GameResult.BLACK_WIN
 
-    if (result === 'win') {
-      gameResult = userIsWhite ? GameResult.WHITE_WIN : GameResult.BLACK_WIN
-    } else if (result === 'loss') {
-      gameResult = userIsWhite ? GameResult.BLACK_WIN : GameResult.WHITE_WIN
-    }
-
-    // Create the game
     const game = await prisma.game.create({
       data: {
-        whitePlayerId: userIsWhite ? user.id : botUser.id,
-        blackPlayerId: userIsWhite ? botUser.id : user.id,
+        whitePlayerId: user.id,
+        blackPlayerId: botUser.id,
         result: gameResult,
-        isOnline: false, // Bot games are not online games
+        isOnline: false,
+        moves: typeof moves === 'string' ? moves : null,
       },
     })
 
-    // Process the game result to update rankings
+    // Process ranking (updates currentPoints, gamesPlayedInCycle, rank)
     try {
       await processGameResult(game.id)
-    } catch (error) {
-      console.error('Error processing bot game result:', error)
-      // Don't fail the request if ranking processing fails
+    } catch (err) {
+      console.error('Error processing bot game result:', err)
     }
+
+    // Award XP
+    const xpGain = XP_GAIN[result as 'win' | 'draw' | 'loss']
+    const [updatedUser] = await Promise.all([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { xp: { increment: xpGain } },
+        select: { xp: true, currentPoints: true, gamesPlayedInCycle: true },
+      }),
+    ])
+
+    const opponentLabel = botName
+      ? `${botName}${botElo ? ` (ELO ${botElo})` : ''}`
+      : 'Bot'
 
     return NextResponse.json({
       success: true,
       gameId: game.id,
-      message: `Game saved: ${result} against ${botName || 'Bot'}`,
+      // Cycle / MMR
+      mmrBefore,
+      mmrAfter: updatedUser.currentPoints,
+      gamesInCycleBefore,
+      gamesInCycleAfter: updatedUser.gamesPlayedInCycle,
+      // XP (kept for context)
+      xpBefore,
+      xpAfter: updatedUser.xp,
+      xpGain,
+      message: `Game saved: ${result} against ${opponentLabel}`,
     })
-  } catch (error) {
-    console.error('Error creating bot game:', error)
+  } catch (err) {
+    console.error('Error creating bot game:', err)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create bot game' },
+      { error: err instanceof Error ? err.message : 'Failed to create bot game' },
       { status: 500 }
     )
   }

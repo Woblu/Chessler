@@ -37,6 +37,7 @@ export default function CustomBoard({
 
   return (
     <Chessboard
+      animationDuration={200}
       {...chessboardProps}
       customPieces={customPieces}
       customDarkSquareStyle={customDarkSquareStyle}

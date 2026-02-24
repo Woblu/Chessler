@@ -1,143 +1,84 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { NextResponse } from 'next/server'
+import { auth, currentUser } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
-import { getUserFromToken } from '@/lib/auth'
 
-export async function GET(request: NextRequest) {
+const USER_SELECT = {
+  id: true,
+  clerk_id: true,
+  name: true,
+  email: true,
+  rank: true,
+  currentPoints: true,
+  gamesPlayedInCycle: true,
+  totalGames: true,
+  pieceSet: true,
+  boardStyle: true,
+  pawns: true,
+  xp: true,
+} as const
+
+/**
+ * GET /api/auth/me
+ * Returns the current user's profile.
+ *
+ * Auto-provisioning strategy (handles all migration scenarios):
+ *  1. Look up by clerk_id  → found: return immediately.
+ *  2. Fetch Clerk profile to get email.
+ *  3. Look up by email     → found: link clerk_id to that row, return.
+ *  4. Otherwise            → create a brand-new row.
+ */
+export async function GET() {
   try {
-    // Support custom email/password login: check auth-token cookie first
-    const token = request.cookies.get('auth-token')?.value
-    if (token) {
-      const tokenUser = await getUserFromToken(token)
-      if (tokenUser) {
-        const { password: _p, ...safeUser } = tokenUser
-        return NextResponse.json({
-          user: safeUser,
-        })
-      }
+    const { userId } = await auth()
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Otherwise use Clerk session
-    const { userId } = await auth()
+    // 1. Fast path — already linked
+    let user = await prisma.user.findUnique({
+      where: { clerk_id: userId },
+      select: USER_SELECT,
+    })
+    if (user) return NextResponse.json({ user })
 
-    if (!userId) {
+    // 2. Need to provision — fetch Clerk profile
+    const clerkUser = await currentUser()
+    if (!clerkUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const email = clerkUser.emailAddresses[0]?.emailAddress
+    if (!email) {
       return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
+        { error: 'No email address on Clerk account' },
+        { status: 400 }
       )
     }
 
-    // Fetch full user from database using clerk_id (Clerk userId)
-    let user = await prisma.user.findUnique({
-      where: { clerk_id: userId },
-      select: {
-        id: true,
-        clerk_id: true,
-        name: true,
-        email: true,
-        rank: true,
-        currentPoints: true,
-        gamesPlayedInCycle: true,
-        totalGames: true,
-        pieceSet: true,
-        boardStyle: true,
-        pawns: true,
-      },
-    })
+    const name =
+      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ').trim() ||
+      clerkUser.username ||
+      email
 
-    // If user doesn't exist in database, create them
-    if (!user) {
-      try {
-        // Get user info from Clerk
-        const { currentUser } = await import('@clerk/nextjs/server')
-        const clerkUser = await currentUser()
-        
-        if (!clerkUser) {
-          return NextResponse.json(
-            { error: 'Clerk user not found' },
-            { status: 404 }
-          )
-        }
-
-        const userEmail = clerkUser.emailAddresses[0]?.emailAddress || `${userId}@temp.com`
-        const userName = clerkUser.fullName || clerkUser.firstName || clerkUser.username || 'User'
-
-        // Create user in database (Clerk user: set clerk_id)
-        user = await prisma.user.create({
-          data: {
-            clerk_id: userId,
-            name: userName,
-            email: userEmail,
-            rank: 'Beginner',
-            currentPoints: 0,
-            gamesPlayedInCycle: 0,
-            totalGames: 0,
-            pieceSet: 'caliente',
-            boardStyle: 'canvas2',
-            pawns: 0,
-          },
-          select: {
-            id: true,
-            clerk_id: true,
-            name: true,
-            email: true,
-            rank: true,
-            currentPoints: true,
-            gamesPlayedInCycle: true,
-            totalGames: true,
-            pieceSet: true,
-            boardStyle: true,
-            pawns: true,
-          },
-        })
-      } catch (createError: any) {
-        console.error('Error creating user:', createError)
-        
-        // If creation fails, try to fetch by clerk_id (maybe it was created in another request)
-        user = await prisma.user.findUnique({
-          where: { clerk_id: userId },
-          select: {
-            id: true,
-            clerk_id: true,
-            name: true,
-            email: true,
-            rank: true,
-            currentPoints: true,
-            gamesPlayedInCycle: true,
-            totalGames: true,
-            pieceSet: true,
-            boardStyle: true,
-            pawns: true,
-          },
-        })
-        
-        // If still no user, return error (don't throw to avoid 500)
-        if (!user) {
-          return NextResponse.json(
-            { 
-              error: 'Failed to create or find user',
-              details: createError?.message || 'Unknown error'
-            },
-            { status: 500 }
-          )
-        }
-      }
+    // 3. Existing row with same email (pre-Clerk account) → link it
+    const existingByEmail = await prisma.user.findUnique({ where: { email } })
+    if (existingByEmail) {
+      user = await prisma.user.update({
+        where: { id: existingByEmail.id },
+        data: { clerk_id: userId },
+        select: USER_SELECT,
+      })
+      return NextResponse.json({ user })
     }
 
-    return NextResponse.json({
-      user: {
-        ...user,
-        id: user.id,
-      },
+    // 4. Brand-new user
+    user = await prisma.user.create({
+      data: { clerk_id: userId, email, name },
+      select: USER_SELECT,
     })
+    return NextResponse.json({ user })
   } catch (error) {
-    console.error('Error getting user:', error)
-    return NextResponse.json(
-      { 
-        error: 'Failed to get user',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    )
+    console.error('Error in /api/auth/me:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

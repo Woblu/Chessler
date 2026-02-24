@@ -1,55 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
-import { getUserFromToken } from '@/lib/auth'
 
-/**
- * GET /api/dashboard/leaderboard
- * Returns top 3 users by points/rank
- */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth()
-    if (!userId) return new NextResponse('Unauthorized', { status: 401 })
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const token = request.cookies.get('auth-token')?.value
-
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      )
-    }
-
-    const user = await getUserFromToken(token)
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      )
-    }
-
-    // Get top 3 users by currentPoints
-    const topUsers = await prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        rank: true,
-        currentPoints: true,
-      },
-      orderBy: {
-        currentPoints: 'desc',
-      },
-      take: 3,
+    const users = await prisma.user.findMany({
+      select: { id: true, name: true, rank: true, currentPoints: true },
+      orderBy: { currentPoints: 'desc' },
+      take: 5,
     })
 
-    return NextResponse.json({ users: topUsers })
-  } catch (error) {
-    console.error('Error fetching leaderboard:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch leaderboard' },
-      { status: 500 }
-    )
+    return NextResponse.json({ users })
+  } catch (err) {
+    console.error('[dashboard/leaderboard]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

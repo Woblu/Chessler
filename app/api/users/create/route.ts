@@ -1,31 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { auth, currentUser } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 
+/**
+ * POST /api/users/create
+ * Creates a DB user record linked to the current Clerk session.
+ * This is a fallback for cases where the webhook hasn't fired yet.
+ */
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth()
-    if (!userId) return new NextResponse('Unauthorized', { status: 401 })
-
-    const { name, rank, email } = await request.json()
-
-    if (!name) {
-      return NextResponse.json(
-        { error: 'name is required' },
-        { status: 400 }
-      )
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Email is required by schema; use fallback for legacy callers that don't send it
-    const userEmail =
-      email && typeof email === 'string' && email.trim().length > 0
-        ? email.trim()
-        : `legacy-${Date.now()}-${Math.random().toString(36).slice(2, 11)}@placeholder.local`
+    // Check if user already exists
+    const existing = await prisma.user.findUnique({
+      where: { clerk_id: userId },
+    })
+    if (existing) {
+      return NextResponse.json(existing)
+    }
+
+    // Fetch Clerk profile for email / display name
+    const clerkUser = await currentUser()
+    const email = clerkUser?.emailAddresses[0]?.emailAddress
+      ?? `clerk-${userId}@placeholder.local`
+    const name =
+      [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ').trim()
+      || clerkUser?.username
+      || email
+
+    const { rank } = await request.json().catch(() => ({ rank: undefined }))
 
     const user = await prisma.user.create({
       data: {
+        clerk_id: userId,
         name,
-        email: userEmail,
+        email,
         rank: rank || 'Beginner',
       },
     })

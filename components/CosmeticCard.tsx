@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { purchaseCosmetic, equipCosmetic } from '@/actions/economy'
 import { GiCoins, GiChessPawn } from 'react-icons/gi'
 
@@ -96,50 +97,20 @@ export default function CosmeticCard({
       {/* Preview */}
       <div className="w-full h-32 bg-chess-bg rounded-lg border border-chess-border mb-4 flex items-center justify-center overflow-hidden">
         {cosmetic.type === 'PIECES' ? (
-          // Show queen piece as preview for piece sets
-          <img
+          <Image
             src={`/pieces/${cosmetic.asset_url.toLowerCase()}/wQ.svg`}
             alt={cosmetic.name}
+            width={96} height={96}
             className="max-w-full max-h-full object-contain"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement
-              // Try fallback to cburnett (default)
-              if (!target.dataset.fallback) {
-                target.dataset.fallback = 'true'
-                target.src = '/pieces/cburnett/wQ.svg'
-              } else if (!target.dataset.fallback2) {
-                // Try caliente as second fallback
-                target.dataset.fallback2 = 'true'
-                target.src = '/pieces/caliente/wQ.svg'
-              } else {
-                // If all fail, show placeholder
-                target.style.display = 'none'
-                const parent = target.parentElement
-                if (parent && !parent.querySelector('.preview-placeholder')) {
-                  const placeholder = document.createElement('div')
-                  placeholder.className = 'preview-placeholder text-slate-500 text-sm'
-                  placeholder.textContent = 'Piece Set Preview'
-                  parent.appendChild(placeholder)
-                }
-              }
-            }}
+            unoptimized
           />
-        ) : cosmetic.asset_url && cosmetic.asset_url.startsWith('/') ? (
-          <img
+        ) : cosmetic.asset_url?.startsWith('/') ? (
+          <Image
             src={cosmetic.asset_url}
             alt={cosmetic.name}
+            width={128} height={96}
             className="max-w-full max-h-full object-contain"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement
-              target.style.display = 'none'
-              const parent = target.parentElement
-              if (parent && !parent.querySelector('.preview-placeholder')) {
-                const placeholder = document.createElement('div')
-                placeholder.className = 'preview-placeholder text-slate-500 text-sm'
-                placeholder.textContent = 'Board Preview'
-                parent.appendChild(placeholder)
-              }
-            }}
+            unoptimized
           />
         ) : (
           <div className="text-slate-500 text-sm">Preview</div>

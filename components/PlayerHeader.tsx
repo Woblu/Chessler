@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 
 interface PlayerHeaderProps {
   playerName: string
@@ -8,9 +8,17 @@ interface PlayerHeaderProps {
   points?: number
   capturedPieces: string[]
   isActive: boolean
-  timeLeft?: number // in seconds
+  /** Seconds remaining on the clock (controlled from parent) */
+  timeLeft?: number
+  /** Seconds added after each move */
+  increment?: number
+  /** Called when clock reaches 0 */
   onTimeUp?: () => void
-  pieceSet?: string // User's selected piece set
+  /** Called when clock ticks — parent can sync its own state */
+  onTick?: (newSeconds: number) => void
+  /** Called when a move is made and increment should be added */
+  onIncrementApply?: (newSeconds: number) => void
+  pieceSet?: string
 }
 
 export default function PlayerHeader({
@@ -20,130 +28,130 @@ export default function PlayerHeader({
   capturedPieces,
   isActive,
   timeLeft,
+  increment = 0,
   onTimeUp,
+  onTick,
   pieceSet = 'caliente',
 }: PlayerHeaderProps) {
-  const [displayTime, setDisplayTime] = useState(timeLeft || 0)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const [displayTime, setDisplayTime] = useState(timeLeft ?? 0)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const didFireTimeUpRef = useRef(false)
 
+  // Sync external time into local state (e.g. after increment applied by parent)
   useEffect(() => {
-    if (timeLeft !== undefined) {
-      setDisplayTime(timeLeft)
-    }
+    if (timeLeft !== undefined) setDisplayTime(timeLeft)
   }, [timeLeft])
 
+  // Reset flag-fall guard when new game starts
   useEffect(() => {
-    if (isActive && timeLeft !== undefined && timeLeft > 0) {
+    didFireTimeUpRef.current = false
+  }, [timeLeft])
+
+  // Clock tick
+  useEffect(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current)
+
+    if (isActive && (timeLeft === undefined || timeLeft > 0)) {
       intervalRef.current = setInterval(() => {
         setDisplayTime((prev) => {
-          const newTime = prev - 1
-          if (newTime <= 0) {
-            if (onTimeUp) {
+          const next = prev - 1
+          if (next <= 0) {
+            clearInterval(intervalRef.current!)
+            if (onTimeUp && !didFireTimeUpRef.current) {
+              didFireTimeUpRef.current = true
               onTimeUp()
             }
             return 0
           }
-          return newTime
+          onTick?.(next)
+          return next
         })
       }, 1000)
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
     }
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-      }
-    }
-  }, [isActive, timeLeft, onTimeUp])
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [isActive]) // intentionally only re-run when isActive changes
 
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  const formatTime = (secs: number): string => {
+    const m = Math.floor(secs / 60)
+    const s = secs % 60
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }
 
-  const getPieceImage = (piece: string): string => {
-    // Map piece notation to image path using user's selected piece set
-    // piece is lowercase (p, r, n, b, q, k) for captured pieces
-    const normalizedPieceSet = pieceSet?.toLowerCase() || 'caliente'
-    const pieceMap: { [key: string]: string } = {
-      p: `/pieces/${normalizedPieceSet}/bP.svg`, // Black pawn
-      r: `/pieces/${normalizedPieceSet}/bR.svg`, // Black rook
-      n: `/pieces/${normalizedPieceSet}/bN.svg`, // Black knight
-      b: `/pieces/${normalizedPieceSet}/bB.svg`, // Black bishop
-      q: `/pieces/${normalizedPieceSet}/bQ.svg`, // Black queen
-      k: `/pieces/${normalizedPieceSet}/bK.svg`, // Black king
-      P: `/pieces/${normalizedPieceSet}/wP.svg`, // White pawn
-      R: `/pieces/${normalizedPieceSet}/wR.svg`, // White rook
-      N: `/pieces/${normalizedPieceSet}/wN.svg`, // White knight
-      B: `/pieces/${normalizedPieceSet}/wB.svg`, // White bishop
-      Q: `/pieces/${normalizedPieceSet}/wQ.svg`, // White queen
-      K: `/pieces/${normalizedPieceSet}/wK.svg`, // White king
+  const getPieceImage = useCallback((piece: string): string => {
+    const ps = pieceSet?.toLowerCase() || 'caliente'
+    const map: Record<string, string> = {
+      p: `/pieces/${ps}/bP.svg`, r: `/pieces/${ps}/bR.svg`,
+      n: `/pieces/${ps}/bN.svg`, b: `/pieces/${ps}/bB.svg`,
+      q: `/pieces/${ps}/bQ.svg`, k: `/pieces/${ps}/bK.svg`,
+      P: `/pieces/${ps}/wP.svg`, R: `/pieces/${ps}/wR.svg`,
+      N: `/pieces/${ps}/wN.svg`, B: `/pieces/${ps}/wB.svg`,
+      Q: `/pieces/${ps}/wQ.svg`, K: `/pieces/${ps}/wK.svg`,
     }
-    return pieceMap[piece] || ''
-  }
+    return map[piece] ?? ''
+  }, [pieceSet])
+
+  const isLowTime = displayTime > 0 && displayTime < 30
+  const isCritical = displayTime > 0 && displayTime < 10
 
   return (
     <div
-      className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
+      className={`flex items-center justify-between px-3 py-2 rounded-lg border-2 transition-all duration-200 ${
         isActive
           ? 'bg-[#3a5a4a] border-[#4a7c59] shadow-lg'
           : 'bg-[#2d2d2d] border-[#3d3d3d]'
       }`}
     >
-      {/* Left side: Player info */}
-      <div className="flex items-center gap-4">
-        <div>
-          <h3 className="text-lg font-bold text-[#f0d9b5]">{playerName}</h3>
-          {(rank || points !== undefined) && (
-            <div className="text-sm text-[#b58863]">
-              {rank && <span>{rank}</span>}
-              {rank && points !== undefined && <span> • </span>}
-              {points !== undefined && <span>{points.toFixed(1)} pts</span>}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Center: Captured pieces */}
-      <div className="flex items-center gap-1 flex-1 justify-center flex-wrap max-w-md">
-        {capturedPieces.length > 0 ? (
-          capturedPieces.map((piece, index) => (
-            <img
-              key={index}
-              src={getPieceImage(piece)}
-              alt={`Captured ${piece}`}
-              className="w-4 h-4 opacity-60 object-contain"
-              onError={(e) => {
-                // Fallback to default set if image not found
-                const target = e.target as HTMLImageElement
-                if (!target.src.includes('/caliente/')) {
-                  target.src = getPieceImage(piece).replace(`/${pieceSet}/`, '/caliente/')
-                } else {
-                  target.style.display = 'none'
-                }
-              }}
-            />
-          ))
-        ) : (
-          <span className="text-[#6b6b6b] text-sm">No captures</span>
+      {/* Player info */}
+      <div className="min-w-0 flex-1">
+        <h3 className="text-sm sm:text-base font-bold text-[#f0d9b5] truncate">{playerName}</h3>
+        {(rank || points !== undefined) && (
+          <p className="text-xs text-[#b58863] truncate">
+            {rank && <span>{rank}</span>}
+            {rank && points !== undefined && <span> · </span>}
+            {points !== undefined && <span>{points.toFixed(1)} pts</span>}
+          </p>
         )}
       </div>
 
-      {/* Right side: Timer */}
-      <div className="flex items-center gap-2">
+      {/* Captured pieces */}
+      <div className="flex-1 flex flex-wrap items-center justify-center gap-0.5 mx-2 max-w-[160px] sm:max-w-xs overflow-hidden">
+        {capturedPieces.slice(0, 15).map((piece, i) => (
+          <img
+            key={i}
+            src={getPieceImage(piece)}
+            alt=""
+            className="w-3.5 h-3.5 opacity-60 object-contain"
+            onError={(e) => {
+              const t = e.target as HTMLImageElement
+              if (!t.src.includes('/caliente/'))
+                t.src = getPieceImage(piece).replace(`/${pieceSet}/`, '/caliente/')
+              else
+                t.style.display = 'none'
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Clock */}
+      {timeLeft !== undefined && (
         <div
-          className={`text-2xl font-mono font-bold ${
-            displayTime < 60 ? 'text-red-400' : 'text-[#f0d9b5]'
+          className={`font-mono font-extrabold tabular-nums text-lg sm:text-2xl shrink-0 px-2 py-0.5 rounded transition-colors ${
+            isCritical
+              ? 'text-red-400 animate-pulse bg-red-900/20'
+              : isLowTime
+              ? 'text-orange-400'
+              : isActive
+              ? 'text-[#f0d9b5]'
+              : 'text-[#8b8b8b]'
           }`}
         >
           {formatTime(displayTime)}
+          {increment > 0 && (
+            <span className="text-xs text-slate-500 ml-1 font-normal">+{increment}</span>
+          )}
         </div>
-      </div>
+      )}
     </div>
   )
 }

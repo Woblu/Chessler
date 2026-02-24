@@ -1,62 +1,39 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
-import { getUserFromToken } from '@/lib/auth'
 
-/**
- * GET /api/dashboard/featured-cosmetics
- * Returns 2 random unowned cosmetics
- */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth()
-    if (!userId) return new NextResponse('Unauthorized', { status: 401 })
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const token = request.cookies.get('auth-token')?.value
+    const user = await prisma.user.findUnique({
+      where: { clerk_id: userId },
+      select: { id: true },
+    })
+    if (!user) return NextResponse.json({ cosmetics: [] })
 
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      )
-    }
-
-    const user = await getUserFromToken(token)
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      )
-    }
-
-    // Get user's owned cosmetics
-    const ownedCosmetics = await prisma.userCosmetic.findMany({
+    const owned = await prisma.userCosmetic.findMany({
       where: { userId: user.id },
       select: { cosmeticId: true },
     })
+    const ownedIds = owned.map((uc) => uc.cosmeticId)
 
-    const ownedIds = ownedCosmetics.map((uc) => uc.cosmeticId)
-
-    // Get all cosmetics not owned by user
-    const allCosmetics = await prisma.cosmetic.findMany({
-      where: {
-        id: {
-          notIn: ownedIds.length > 0 ? ownedIds : [],
-        },
-      },
+    const cosmetics = await prisma.cosmetic.findMany({
+      where: ownedIds.length ? { id: { notIn: ownedIds } } : {},
+      select: { id: true, name: true, price: true, type: true },
+      take: 6,
     })
 
-    // Shuffle and take 2
-    const shuffled = allCosmetics.sort(() => 0.5 - Math.random())
-    const featured = shuffled.slice(0, 2)
+    // Fisher-Yates shuffle then take 2
+    for (let i = cosmetics.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cosmetics[i], cosmetics[j]] = [cosmetics[j], cosmetics[i]]
+    }
 
-    return NextResponse.json({ cosmetics: featured })
-  } catch (error) {
-    console.error('Error fetching featured cosmetics:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch featured cosmetics' },
-      { status: 500 }
-    )
+    return NextResponse.json({ cosmetics: cosmetics.slice(0, 2) })
+  } catch (err) {
+    console.error('[dashboard/featured-cosmetics]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

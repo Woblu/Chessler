@@ -1,68 +1,39 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
-import { getUserFromToken } from '@/lib/auth'
 
-/**
- * GET /api/dashboard/openings
- * Returns openings that need review (spaced repetition)
- */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth()
-    if (!userId) return new NextResponse('Unauthorized', { status: 401 })
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const token = request.cookies.get('auth-token')?.value
+    const user = await prisma.user.findUnique({
+      where: { clerk_id: userId },
+      select: { id: true },
+    })
+    if (!user) return NextResponse.json({ count: 0, openings: [] })
 
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      )
-    }
-
-    const user = await getUserFromToken(token)
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      )
-    }
-
-    // Get openings with unlearned nodes
+    // Only select what we need — opening id/name + learned status per node
     const openings = await prisma.opening.findMany({
-      include: {
+      select: {
+        id: true, name: true,
         moveNodes: {
-          include: {
-            userProgress: {
-              where: {
-                userId: user.id,
-                isLearned: false,
-              },
-            },
+          select: {
+            id: true,
+            userProgress: { where: { userId: user.id, isLearned: true }, select: { id: true } },
           },
         },
       },
     })
 
-    // Filter to openings with unlearned nodes
-    const openingsToReview = openings.filter(
-      (opening) => opening.moveNodes.some((node) => node.userProgress.length === 0)
-    )
+    const toReview = openings
+      .filter((o) => o.moveNodes.some((n) => n.userProgress.length === 0))
+      .slice(0, 5)
+      .map((o) => ({ id: o.id, name: o.name }))
 
-    return NextResponse.json({
-      count: openingsToReview.length,
-      openings: openingsToReview.slice(0, 5).map((o) => ({
-        id: o.id,
-        name: o.name,
-      })),
-    })
-  } catch (error) {
-    console.error('Error fetching openings:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch openings' },
-      { status: 500 }
-    )
+    return NextResponse.json({ count: toReview.length, openings: toReview })
+  } catch (err) {
+    console.error('[dashboard/openings]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

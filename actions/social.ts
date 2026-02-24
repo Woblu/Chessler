@@ -1,28 +1,14 @@
 'use server'
 
-import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@clerk/nextjs/server'
-import { getUserFromToken } from '@/lib/auth'
 
-/** Get current user from auth-token cookie (email/password) or Clerk session */
 async function getCurrentUser() {
-  const token = (await cookies()).get('auth-token')?.value
-  if (token) {
-    const user = await getUserFromToken(token)
-    if (user) return user
-  }
   const { userId } = await auth()
   if (!userId) return null
   return prisma.user.findUnique({
     where: { clerk_id: userId },
-    select: {
-      id: true,
-      clerk_id: true,
-      name: true,
-      email: true,
-      rank: true,
-    },
+    select: { id: true, name: true, email: true, rank: true },
   })
 }
 
@@ -39,7 +25,6 @@ export async function getFriends() {
         friends: {
           select: {
             id: true,
-            clerk_id: true,
             name: true,
             email: true,
             rank: true,

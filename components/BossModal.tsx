@@ -1,5 +1,7 @@
 'use client'
 
+import Image from 'next/image'
+
 interface BossModalProps {
   node: {
     id: string
@@ -33,16 +35,18 @@ export default function BossModal({
       >
         {/* Boss Avatar */}
         <div className="flex justify-center mb-6">
-          <div className="w-32 h-32 rounded-full border-4 border-[#7fa650] overflow-hidden bg-[#1a1a1a]">
-            <img
-              src={node.bossAvatarUrl}
-              alt={node.bossName}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect width="100" height="100" fill="%23333"/%3E%3Ctext x="50" y="50" font-size="40" fill="%23fff" text-anchor="middle" dominant-baseline="middle"%3E♔%3C/text%3E%3C/svg%3E'
-              }}
-            />
+          <div className="relative w-32 h-32 rounded-full border-4 border-[#7fa650] overflow-hidden bg-[#1a1a1a]">
+            {node.bossAvatarUrl && !node.bossAvatarUrl.startsWith('http') ? (
+              <Image
+                src={node.bossAvatarUrl}
+                alt={node.bossName}
+                fill className="object-cover"
+                sizes="128px"
+                unoptimized
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-5xl select-none">♔</div>
+            )}
           </div>
         </div>
 
