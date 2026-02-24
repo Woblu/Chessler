@@ -393,8 +393,6 @@ function CampaignPageInner({ initialRegions, initialCurrentRegionId, pieceSet }:
               </button>
             ))}
           </div>
-            </>
-          )}
         </div>
       </div>
     </div>
