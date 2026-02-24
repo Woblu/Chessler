@@ -27,6 +27,7 @@ export default function PlayLobbyClient() {
   const { dbUser, isUserLoading } = useDbUser()
 
   const [socket,   setSocket]   = useState<Socket | null>(null)
+  const [socketError, setSocketError] = useState<string | null>(null)
   const [inQueue,  setInQueue]  = useState(false)
   const [waitSecs, setWaitSecs] = useState(0)
   const [queueSize, setQueueSize] = useState(0)
@@ -55,12 +56,26 @@ export default function PlayLobbyClient() {
       baseUrl = window.location.origin
     }
     const s = io(baseUrl, {
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
     })
     socketRef.current = s
-    setSocket(s)
+    setSocket(null)
+    setSocketError(null)
 
-    s.on('connect',    () => setSocket(s))
+    const connectTimeout = setTimeout(() => {
+      if (!s.connected) {
+        setSocketError('Matchmaking server unreachable. Make sure the game server is running (e.g. npm run start).')
+      }
+    }, 10000)
+
+    s.on('connect', () => {
+      clearTimeout(connectTimeout)
+      setSocket(s)
+      setSocketError(null)
+    })
+    s.on('connect_error', () => {
+      setSocketError('Could not connect to matchmaking server.')
+    })
     s.on('disconnect', () => { setInQueue(false); setWaitSecs(0) })
 
     s.on('queue_status', (d: { inQueue: boolean; queueSize?: number; waitSeconds?: number }) => {
@@ -90,6 +105,7 @@ export default function PlayLobbyClient() {
     s.on('error', (d: { message: string }) => console.error('[lobby]', d.message))
 
     return () => {
+      clearTimeout(connectTimeout)
       if (waitTimerRef.current)   clearInterval(waitTimerRef.current)
       if (countdownRef.current)   clearInterval(countdownRef.current)
       s.emit('leave_queue')
@@ -239,7 +255,11 @@ export default function PlayLobbyClient() {
             )}
 
             <div className="mt-auto">
-              {!socket ? (
+              {socketError ? (
+                <div className="w-full rounded-xl bg-red-900/30 border border-red-700/50 px-4 py-3 text-red-200 text-sm">
+                  {socketError}
+                </div>
+              ) : !socket ? (
                 <div className="w-full h-12 rounded-xl bg-slate-700 flex items-center justify-center text-slate-400 text-sm">
                   Connecting…
                 </div>

@@ -497,6 +497,8 @@ function PlayBotPageInner() {
                     boardOrientation={userColor}
                     equippedBoardUrl={equippedBoardUrl}
                     equippedPieceSet={equippedPieceSet}
+                    fallbackPieceSet={dbUser?.pieceSet || 'cardinal'}
+                    fallbackBoardStyle={dbUser?.boardStyle || 'canvas2'}
                     customSquareStyles={premoveStyles}
                     customBoardStyle={{ borderRadius: '4px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', width: '100%' }}
                   />

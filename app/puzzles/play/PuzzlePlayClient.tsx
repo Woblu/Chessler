@@ -6,7 +6,7 @@ import { Chessboard } from 'react-chessboard'
 import { Chess, type Square } from 'chess.js'
 import { getRandomPuzzleByTheme } from '@/actions/puzzles'
 import { awardPawns } from '@/actions/economy'
-import { getCustomPieces, getCustomSquareStyles } from '@/lib/chess-customization'
+import { getCustomPieces, getCustomSquareStyles, getBoardStyleImageUrl } from '@/lib/chess-customization'
 import { useDbUser } from '@/app/context/UserContext'
 
 interface Puzzle {
@@ -413,8 +413,16 @@ function PuzzlePlayPageInner() {
                 }, {} as Record<string, any>),
               }}
               customPieces={getCustomPieces(dbUser?.pieceSet || 'cardinal')}
-              customDarkSquareStyle={getCustomSquareStyles(dbUser?.boardStyle || 'canvas2').dark}
-              customLightSquareStyle={getCustomSquareStyles(dbUser?.boardStyle || 'canvas2').light}
+              customDarkSquareStyle={(() => {
+                const boardUrl = getBoardStyleImageUrl(dbUser?.boardStyle)
+                const fallback = getCustomSquareStyles(dbUser?.boardStyle || 'canvas2')
+                return boardUrl ? { backgroundImage: `url(${boardUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : fallback.dark
+              })()}
+              customLightSquareStyle={(() => {
+                const boardUrl = getBoardStyleImageUrl(dbUser?.boardStyle)
+                const fallback = getCustomSquareStyles(dbUser?.boardStyle || 'canvas2')
+                return boardUrl ? { backgroundImage: `url(${boardUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : fallback.light
+              })()}
               customBoardStyle={{
                 borderRadius: '4px',
                 boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',

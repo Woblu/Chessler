@@ -30,6 +30,9 @@ const NAV_LINKS = [
   { href: '/settings',    label: 'Settings',    Icon: HiCog },
 ] as const
 
+// Desktop bar shows everything except Settings (Settings is a gear icon on the right)
+const DESKTOP_NAV_LINKS = NAV_LINKS.filter((l) => l.href !== '/settings')
+
 export default function Navbar() {
   const pathname = usePathname()
   const { isSignedIn } = useUser()
@@ -73,7 +76,7 @@ export default function Navbar() {
               </span>
             </Link>
 
-            {/* Desktop links */}
+            {/* Desktop links (no Settings — that's a gear on the right) */}
             <div className="hidden lg:flex items-center gap-0.5">
               <Link href="/"
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -82,7 +85,7 @@ export default function Navbar() {
               >
                 Home
               </Link>
-              {dbUser && NAV_LINKS.map(({ href, label, Icon }) => (
+              {dbUser && DESKTOP_NAV_LINKS.map(({ href, label, Icon }) => (
                 <Link key={href} href={href}
                   className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
                     isActive(href) ? 'bg-pawn-gold text-slate-900' : 'text-slate-300 hover:bg-chess-card hover:text-white'
@@ -95,19 +98,31 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* ── Right: Auth + mobile hamburger ──────────────────────────── */}
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
+          {/* ── Right: Settings gear | Pawns | Profile dropdown (rightmost) | Hamburger ──────────────────────────── */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {dbUser ? (
               <>
-                {/* Pawns pill — hidden on xs */}
+                {/* Settings — gear icon only, left of pawns */}
+                <Link
+                  href="/settings"
+                  className={`hidden lg:flex items-center justify-center w-10 h-10 rounded-lg border transition-colors shrink-0 ${
+                    isActive('/settings') ? 'bg-pawn-gold text-slate-900 border-pawn-gold' : 'bg-chess-card border-chess-border text-slate-300 hover:bg-slate-700 hover:text-white'
+                  }`}
+                  title="Settings"
+                  aria-label="Settings"
+                >
+                  <HiCog className="text-xl" />
+                </Link>
+
+                {/* Pawns pill */}
                 <div className="hidden sm:flex items-center gap-1.5 bg-chess-card px-3 py-1.5 rounded-full border border-chess-border shrink-0">
                   <GiCoins className="text-pawn-gold text-base" />
                   <span className="text-white font-semibold text-sm tabular-nums">{dbUser.pawns}</span>
                   <span className="text-slate-400 text-xs hidden md:inline">pawns</span>
                 </div>
 
-                {/* Profile dropdown — desktop */}
-                <div className="hidden lg:block relative min-w-0 shrink" ref={dropdownRef}>
+                {/* Profile dropdown — rightmost on desktop */}
+                <div className="hidden lg:block relative shrink-0" ref={dropdownRef}>
                   <button
                     onClick={() => setDropdownOpen((o) => !o)}
                     className="flex items-center gap-2 bg-chess-card px-3 py-1.5 rounded-lg border border-chess-border hover:bg-slate-700 transition-colors min-w-0 w-full max-w-full"

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useDbUser } from '@/app/context/UserContext'
 
 interface User {
   id: string
@@ -37,6 +38,7 @@ const BOARD_STYLES = [
 ]
 
 export default function SettingsPage({ initialUser }: Props) {
+  const { dbUser, setDbUser } = useDbUser()
   const [user, setUser] = useState<User>(initialUser)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -93,6 +95,10 @@ export default function SettingsPage({ initialUser }: Props) {
         })
         if (user) {
           setUser({ ...user, ...data.user })
+        }
+        // Update global user context so play/puzzle/learn use new board & piece set immediately
+        if (data.user && dbUser) {
+          setDbUser({ ...dbUser, ...data.user })
         }
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to save settings' })

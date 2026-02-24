@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Chess } from 'chess.js'
 import CustomBoard from '@/components/CustomBoard'
+import { useDbUser } from '@/app/context/UserContext'
 import { useGameAnalysis } from '@/hooks/useGameAnalysis'
 import {
   MoveQuality,
@@ -61,6 +62,7 @@ export default function ReviewClient({
 }: Props) {
   const uciMoves = movesStr ? movesStr.split(' ').filter(Boolean) : []
   const fens = buildFenSequence(uciMoves)
+  const { dbUser } = useDbUser()
 
   const [currentPly, setCurrentPly] = useState(0)
   const [displayFen, setDisplayFen] = useState(fens[0])
@@ -180,6 +182,8 @@ export default function ReviewClient({
                   boardOrientation={userIsWhite ? 'white' : 'black'}
                   equippedBoardUrl={equippedBoardUrl}
                   equippedPieceSet={equippedPieceSet}
+                  fallbackPieceSet={dbUser?.pieceSet || 'cardinal'}
+                  fallbackBoardStyle={dbUser?.boardStyle || 'canvas2'}
                   customBoardStyle={{ borderRadius: '6px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
                 />
               </div>

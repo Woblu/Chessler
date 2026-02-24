@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Chessboard } from 'react-chessboard'
 import { Chess, type Square } from 'chess.js'
-import { getCustomPieces, getCustomSquareStyles } from '@/lib/chess-customization'
+import { getCustomPieces, getCustomSquareStyles, getBoardStyleImageUrl } from '@/lib/chess-customization'
 import { useDbUser } from '@/app/context/UserContext'
 
 interface LineData {
@@ -232,8 +232,16 @@ export default function LearnOpeningPage() {
                 onPieceDrop={onDrop}
                 arePiecesDraggable={!!(!lineCompleted && isUserTurn && !isOpponentMoving && lineData && currentMoveIndex < lineData.line.length)}
                 customPieces={getCustomPieces(dbUser?.pieceSet || 'cardinal')}
-                customDarkSquareStyle={getCustomSquareStyles(dbUser?.boardStyle || 'canvas2').dark}
-                customLightSquareStyle={getCustomSquareStyles(dbUser?.boardStyle || 'canvas2').light}
+                customDarkSquareStyle={(() => {
+                  const boardUrl = getBoardStyleImageUrl(dbUser?.boardStyle)
+                  const fallback = getCustomSquareStyles(dbUser?.boardStyle || 'canvas2')
+                  return boardUrl ? { backgroundImage: `url(${boardUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : fallback.dark
+                })()}
+                customLightSquareStyle={(() => {
+                  const boardUrl = getBoardStyleImageUrl(dbUser?.boardStyle)
+                  const fallback = getCustomSquareStyles(dbUser?.boardStyle || 'canvas2')
+                  return boardUrl ? { backgroundImage: `url(${boardUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : fallback.light
+                })()}
                 customBoardStyle={{
                   borderRadius: '4px',
                   boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',

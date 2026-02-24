@@ -48,12 +48,35 @@ export function getCustomPieces(pieceSet: string = 'cardinal'): { [key: string]:
 }
 
 /**
+ * Board style id → image filename (must match Settings BOARD_STYLES and files in /public/Boards/)
+ */
+export const BOARD_STYLE_IMAGES: Record<string, string> = {
+  canvas2: 'canvas2.jpg',
+  green: 'green.png',
+  horsey: 'horsey.jpg',
+  metal: 'metal.jpg',
+  olive: 'olive.jpg',
+  'purple-diag': 'purple-diag.png',
+  wood2: 'wood2.jpg',
+  wood4: 'wood4.jpg',
+}
+
+/**
+ * Returns the board image URL for a Settings board style id, or null if unknown.
+ * Use this so the actual board image is shown (e.g. in play, puzzles, learn).
+ */
+export function getBoardStyleImageUrl(boardStyleId: string | undefined | null): string | null {
+  if (!boardStyleId) return null
+  const image = BOARD_STYLE_IMAGES[boardStyleId]
+  return image ? `/Boards/${image}` : null
+}
+
+/**
  * Get custom square styles for a given board style
  * @param boardStyle - The name of the board style image file (e.g., "canvas2", "wood2")
  */
 export function getCustomSquareStyles(boardStyle: string = 'canvas2') {
-  // Board color mappings - these will be used as solid colors
-  // Since we have full board images, we use colors that match the board style
+  // Board color mappings - used when no board image is available
   const boardColors: { [key: string]: { light: string; dark: string } } = {
     canvas2: { light: '#f0d9b5', dark: '#b58863' },
     green: { light: '#f0d9b5', dark: '#7fa650' },

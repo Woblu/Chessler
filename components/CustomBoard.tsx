@@ -2,38 +2,41 @@
 
 import { Chessboard } from 'react-chessboard'
 import { ChessboardProps, CustomPieceFn } from 'react-chessboard/dist/chessboard/types'
+import { getCustomSquareStyles, getBoardStyleImageUrl } from '@/lib/chess-customization'
 
 interface CustomBoardProps extends Omit<ChessboardProps, 'customPieces' | 'customDarkSquareStyle' | 'customLightSquareStyle' | 'ref'> {
   equippedBoardUrl?: string | null
   equippedPieceSet?: string | null
+  /** Used when no piece cosmetic is equipped (e.g. user's Settings preference) */
+  fallbackPieceSet?: string
+  /** Used when no board cosmetic is equipped (e.g. user's Settings preference) */
+  fallbackBoardStyle?: string
 }
 
 export default function CustomBoard({
   equippedBoardUrl,
   equippedPieceSet,
+  fallbackPieceSet = 'cardinal',
+  fallbackBoardStyle = 'canvas2',
   ...chessboardProps
 }: CustomBoardProps) {
-  // Create custom pieces if equippedPieceSet is provided
-  const customPieces = equippedPieceSet
-    ? createCustomPieces(equippedPieceSet)
-    : undefined
+  // Use equipped piece set, or fall back to user's saved preference
+  const pieceSet = equippedPieceSet ?? fallbackPieceSet
+  const customPieces = createCustomPieces(pieceSet)
 
-  // Create custom square styles if equippedBoardUrl is provided
-  const customDarkSquareStyle = equippedBoardUrl
+  // Use equipped board image, or user's Settings board image, or solid colors
+  const boardImageUrl = equippedBoardUrl ?? getBoardStyleImageUrl(fallbackBoardStyle)
+  const squareStyleFromImage = boardImageUrl
     ? {
-        backgroundImage: `url(${equippedBoardUrl})`,
+        backgroundImage: `url(${boardImageUrl})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }
-    : undefined
+    : null
+  const fallbackStyles = getCustomSquareStyles(fallbackBoardStyle)
 
-  const customLightSquareStyle = equippedBoardUrl
-    ? {
-        backgroundImage: `url(${equippedBoardUrl})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }
-    : undefined
+  const customDarkSquareStyle = squareStyleFromImage ?? fallbackStyles.dark
+  const customLightSquareStyle = squareStyleFromImage ?? fallbackStyles.light
 
   return (
     <Chessboard
