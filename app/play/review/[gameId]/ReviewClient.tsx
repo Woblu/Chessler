@@ -176,6 +176,7 @@ export default function ReviewClient({
 
               <div className="flex-1">
                 <CustomBoard
+                  key={currentPly}
                   position={displayFen}
                   onPieceDrop={() => false}
                   arePiecesDraggable={false}
@@ -185,6 +186,7 @@ export default function ReviewClient({
                   fallbackPieceSet={dbUser?.pieceSet || 'cardinal'}
                   fallbackBoardStyle={dbUser?.boardStyle || 'canvas2'}
                   customBoardStyle={{ borderRadius: '6px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
+                  animationDuration={0}
                 />
               </div>
             </div>
