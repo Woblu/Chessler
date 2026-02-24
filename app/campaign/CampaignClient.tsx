@@ -228,11 +228,10 @@ function CampaignPageInner({ initialRegions, initialCurrentRegionId, pieceSet }:
                 }
               </Geographies>
 
-              {/* Dashed route lines between regions */}
+              {/* Dashed lines between all pins in tournament order */}
               {regions.map((region, index) => {
                 if (index === 0) return null
                 const prev = regions[index - 1]
-                if (prev.isLocked && region.isLocked) return null
                 return (
                   <Line
                     key={`path-${prev.id}-${region.id}`}
@@ -241,7 +240,7 @@ function CampaignPageInner({ initialRegions, initialCurrentRegionId, pieceSet }:
                     stroke="#fbbf24"
                     strokeWidth={2}
                     strokeDasharray="4 4"
-                    opacity={region.isLocked ? 0.3 : 0.6}
+                    opacity={region.isLocked ? 0.35 : 0.65}
                   />
                 )
               })}
@@ -258,22 +257,19 @@ function CampaignPageInner({ initialRegions, initialCurrentRegionId, pieceSet }:
                 />
               )}
 
-              {/* Region markers — render non-current first so the king stays on top */}
-              {[
-                ...regions.filter((r) => r.id !== currentRegionId),
-                ...regions.filter((r) => r.id === currentRegionId),
-              ].map((region) => {
-                const isCurrent = region.id === currentRegionId
-                return (
+              {/* Pins only for non-current regions (no pin under your icon) */}
+              {regions
+                .filter((r) => r.id !== currentRegionId)
+                .map((region) => (
                   <Marker
                     key={region.id}
                     coordinates={[region.longitude, region.latitude]}
                   >
                     <foreignObject
                       x={-14}
-                      y={isCurrent ? -30 : -28}
+                      y={-28}
                       width={28}
-                      height={isCurrent ? 30 : 28}
+                      height={28}
                       onClick={() => handleRegionClick(region)}
                       className={
                         region.isLocked
@@ -283,7 +279,38 @@ function CampaignPageInner({ initialRegions, initialCurrentRegionId, pieceSet }:
                           : 'cursor-pointer'
                       }
                     >
-                      {isCurrent ? (
+                      <div className="w-full h-full flex items-end justify-center">
+                        <MapPin
+                          className={`w-6 h-6 drop-shadow-lg transition-colors ${
+                            region.isLocked
+                              ? 'text-slate-600'
+                              : 'text-slate-300 hover:text-amber-400'
+                          }`}
+                        />
+                      </div>
+                    </foreignObject>
+                  </Marker>
+                ))}
+
+              {/* Your position: king only, no pin */}
+              {currentRegionId &&
+                regions
+                  .filter((r) => r.id === currentRegionId)
+                  .map((region) => (
+                    <Marker
+                      key={region.id}
+                      coordinates={[region.longitude, region.latitude]}
+                    >
+                      <foreignObject
+                        x={-14}
+                        y={-30}
+                        width={28}
+                        height={30}
+                        onClick={() => handleRegionClick(region)}
+                        className={
+                          isFlying ? 'cursor-wait' : 'cursor-pointer'
+                        }
+                      >
                         <motion.div
                           animate={{ scale: [1, 1.2, 1] }}
                           transition={{
@@ -293,30 +320,18 @@ function CampaignPageInner({ initialRegions, initialCurrentRegionId, pieceSet }:
                           }}
                           className="w-full h-full flex items-end justify-center"
                         >
-                          {/* White King piece from the user's equipped piece set */}
                           <Image
                             src={`/Pieces/${pieceSet}/wK.svg`}
                             alt="Your position"
-                            width={28} height={28}
+                            width={28}
+                            height={28}
                             className="pointer-events-none"
                             unoptimized
                           />
                         </motion.div>
-                      ) : (
-                        <div className="w-full h-full flex items-end justify-center">
-                          <MapPin
-                            className={`w-6 h-6 drop-shadow-lg transition-colors ${
-                              region.isLocked
-                                ? 'text-slate-600'
-                                : 'text-slate-300 hover:text-amber-400'
-                            }`}
-                          />
-                        </div>
-                      )}
-                    </foreignObject>
-                  </Marker>
-                )
-              })}
+                      </foreignObject>
+                    </Marker>
+                  ))}
 
               {/* Animated airplane icon */}
               {isFlying && airplanePos && (
