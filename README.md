@@ -52,6 +52,27 @@ A Next.js chess application with PostgreSQL (Prisma) featuring a comprehensive r
 
 6. **Open [http://localhost:3000](http://localhost:3000)** in your browser
 
+## Seeding the database
+
+After a fresh database (or after wiping it), run these seed scripts so the app has regions, shop items, openings, and optionally puzzles.
+
+**Order doesn’t matter** except that **tournament** creates `UserTourProgress` for existing users if you run it after signup; otherwise the campaign page will create progress on first visit.
+
+| What              | Command                  | Notes |
+|-------------------|--------------------------|--------|
+| **Campaign / World Tour** | `npm run seed-tournament` | Regions + tournament nodes (no external file). |
+| **Shop (cosmetics)**      | `npm run seed-shop`       | Boards and piece sets. |
+| **Learn (openings)**      | `npm run seed-all-openings` | Fetches from Lichess; needs network. |
+| **Puzzles**               | `npm run seed-puzzles`     | **Requires `puzzles.csv` in the project root.** |
+
+**Puzzles:** The script reads `puzzles.csv` (not in the repo; it’s in `.gitignore`). You need a CSV with columns like `PuzzleId`, `FEN`, `Moves`, `Rating`, `Themes`. The script keeps puzzles with rating 800–1500. You can get Lichess puzzle datasets from [Lichess Open Database](https://database.lichess.org/) (e.g. puzzle themes or game-related exports) or build a CSV in that format. Without `puzzles.csv`, skip `npm run seed-puzzles`; the Puzzles page will just be empty.
+
+**One-liner** (if you have `puzzles.csv` and want everything):
+
+```bash
+npm run seed-tournament && npm run seed-shop && npm run seed-all-openings && npm run seed-puzzles
+```
+
 ## Database Schema
 
 ### User

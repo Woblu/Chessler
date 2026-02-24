@@ -53,18 +53,25 @@ async function seedPuzzles() {
         // Filter by rating (800-1500)
         const rating = parseInt(row.Rating, 10)
         if (isNaN(rating) || rating < 800 || rating > 1500) {
-          return // Skip this puzzle
+          return
+        }
+
+        // Require id, FEN, and Moves so we don't insert invalid rows
+        const id = row.PuzzleId?.trim()
+        const fen = row.FEN?.trim()
+        const moves = row.Moves?.trim()
+        if (!id || !fen || !moves) {
+          return
         }
 
         totalFiltered++
 
-        // Map CSV columns to Prisma model
         puzzles.push({
-          id: row.PuzzleId,
-          fen: row.FEN,
-          moves: row.Moves,
-          rating: rating,
-          themes: row.Themes || '',
+          id,
+          fen,
+          moves,
+          rating,
+          themes: (row.Themes ?? '').trim(),
           pawnReward: 5,
         })
 
@@ -100,25 +107,28 @@ async function seedPuzzles() {
       .on('end', async () => {
         console.log('Finished reading CSV file')
 
-        // Insert remaining puzzles
-        if (puzzles.length > 0) {
+        // Insert remaining puzzles in batches of 1000 (same as during stream)
+        while (puzzles.length > 0) {
+          const batch = puzzles.splice(0, 1000)
           batchCount++
           try {
             await prisma.puzzle.createMany({
-              data: puzzles,
+              data: batch,
               skipDuplicates: true,
             })
             console.log(
-              `Final batch: Inserted ${puzzles.length} puzzles (Total processed: ${totalProcessed}, Total filtered: ${totalFiltered})`
+              `Batch ${batchCount}: Inserted ${batch.length} puzzles (Total processed: ${totalProcessed}, Total filtered: ${totalFiltered})`
             )
           } catch (error) {
-            console.error(`Error inserting final batch:`, error)
+            console.error(`Error inserting batch ${batchCount}:`, error)
+            reject(error)
+            return
           }
         }
 
         console.log('\n=== Seeding Complete ===')
         console.log(`Total rows processed: ${totalProcessed}`)
-        console.log(`Total puzzles inserted: ${totalFiltered}`)
+        console.log(`Total puzzles passing filter: ${totalFiltered}`)
         console.log(`Total batches: ${batchCount}`)
 
         resolve()
