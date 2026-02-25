@@ -15,9 +15,6 @@ model User {
   clerk_id              String         @unique
   name                  String
   email                 String         @unique
-  rank                  String         @default("Beginner")
-  currentPoints         Float          @default(0)
-  gamesPlayedInCycle    Int            @default(0)
   totalGames            Int            @default(0)
   pieceSet              String         @default("cardinal")
   boardStyle            String         @default("canvas2")
@@ -25,6 +22,10 @@ model User {
   xp                    Int            @default(0)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
+  // Glicko-2 rating system
+  rating                Float          @default(1200)
+  ratingDeviation       Float          @default(350)
+  volatility            Float          @default(0.06)
 
   whiteGames            Game[]         @relation("WhitePlayer")
   blackGames            Game[]         @relation("BlackPlayer")

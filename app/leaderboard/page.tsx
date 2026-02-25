@@ -8,8 +8,7 @@ export const revalidate = 120
 export interface LeaderboardEntry {
   id: string
   name: string
-  rank: string
-  currentPoints: number
+  rating: number
   totalGames: number
   wins: number
 }
@@ -17,13 +16,11 @@ export interface LeaderboardEntry {
 export default async function LeaderboardPage() {
   const { userId } = await auth()
 
-  // Single query: top-50 by currentPoints, + win count via raw
   const rows = await prisma.$queryRaw<
     Array<{
       id: string
       name: string
-      rank: string
-      currentPoints: number
+      rating: number
       totalGames: number
       wins: bigint
     }>
@@ -31,8 +28,7 @@ export default async function LeaderboardPage() {
     SELECT
       u.id,
       u.name,
-      u.rank,
-      u."currentPoints",
+      u.rating,
       u."totalGames",
       COALESCE(SUM(
         CASE
@@ -44,15 +40,14 @@ export default async function LeaderboardPage() {
     FROM users u
     LEFT JOIN games g ON g."whitePlayerId" = u.id OR g."blackPlayerId" = u.id
     GROUP BY u.id
-    ORDER BY u."currentPoints" DESC, u."totalGames" DESC
+    ORDER BY u.rating DESC NULLS LAST, u."totalGames" DESC
     LIMIT 50
   `
 
   const entries: LeaderboardEntry[] = rows.map((r) => ({
     id: r.id,
     name: r.name,
-    rank: r.rank,
-    currentPoints: r.currentPoints,
+    rating: r.rating,
     totalGames: r.totalGames,
     wins: Number(r.wins),
   }))

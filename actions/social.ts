@@ -8,7 +8,7 @@ async function getCurrentUser() {
   if (!userId) return null
   return prisma.user.findUnique({
     where: { clerk_id: userId },
-    select: { id: true, name: true, email: true, rank: true },
+    select: { id: true, name: true, email: true, rating: true },
   })
 }
 
@@ -27,7 +27,7 @@ export async function getFriends() {
             id: true,
             name: true,
             email: true,
-            rank: true,
+            rating: true,
           },
         },
       },

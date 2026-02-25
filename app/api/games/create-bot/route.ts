@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 import { GameResult } from '@prisma/client'
-import { processGameResult } from '@/lib/ranking'
+import { calculateNewRatings } from '@/lib/rating'
+import { evaluateQuests } from '@/actions/quests'
 import { XP_GAIN } from '@/lib/analysis'
+
+const BOT_RD = 50
+const BOT_VOLATILITY = 0.06
 
 /**
  * POST /api/games/create-bot
- * Records the result of a bot game, saves moves, awards XP, and returns
- * both the before/after MMR (currentPoints) and cycle counters.
+ * Records the result of a bot game, saves moves, awards XP, and updates
+ * the user's Glicko-2 rating (bot is treated as fixed rating, not persisted).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +23,14 @@ export async function POST(request: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { clerk_id: userId },
-      select: { id: true, xp: true, currentPoints: true, gamesPlayedInCycle: true },
+      select: {
+        id: true,
+        xp: true,
+        rating: true,
+        ratingDeviation: true,
+        volatility: true,
+        totalGames: true,
+      },
     })
 
     if (!user) {
@@ -35,12 +46,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Snapshot values BEFORE the game is processed
-    const mmrBefore = user.currentPoints
-    const gamesInCycleBefore = user.gamesPlayedInCycle
+    const ratingBefore = user.rating
     const xpBefore = user.xp
+    const botRating = typeof botElo === 'number' ? botElo : 1200
 
-    // Find or create the system bot user
+    // Find or create the system bot user (for game record only; we do not update its rating)
     const botEmail = 'bot@system.local'
     let botUser = await prisma.user.findUnique({ where: { email: botEmail } })
     if (!botUser) {
@@ -49,7 +59,6 @@ export async function POST(request: NextRequest) {
           clerk_id: `bot_system_${Date.now()}`,
           name: botName || 'Bot',
           email: botEmail,
-          rank: 'Bot',
         },
       })
     }
@@ -68,38 +77,55 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Process ranking (updates currentPoints, gamesPlayedInCycle, rank)
-    try {
-      await processGameResult(game.id)
-    } catch (err) {
-      console.error('Error processing bot game result:', err)
+    // White (user) score: 1 = win, 0 = loss, 0.5 = draw
+    const whiteScore =
+      result === 'win' ? 1 : result === 'loss' ? 0 : 0.5
+
+    const updated = calculateNewRatings(
+      {
+        rating: user.rating,
+        ratingDeviation: user.ratingDeviation,
+        volatility: user.volatility,
+      },
+      {
+        rating: botRating,
+        ratingDeviation: BOT_RD,
+        volatility: BOT_VOLATILITY,
+      },
+      whiteScore
+    )
+
+    const xpGain = XP_GAIN[result as 'win' | 'draw' | 'loss']
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        rating: updated.player1.rating,
+        ratingDeviation: updated.player1.ratingDeviation,
+        volatility: updated.player1.volatility,
+        totalGames: user.totalGames + 1,
+        xp: { increment: xpGain },
+      },
+    })
+
+    if (result === 'win') {
+      await evaluateQuests(user.id, 'GAME_WON', 1).catch((error) => {
+        console.error('Error evaluating quests:', error)
+      })
     }
 
-    // Award XP
-    const xpGain = XP_GAIN[result as 'win' | 'draw' | 'loss']
-    const [updatedUser] = await Promise.all([
-      prisma.user.update({
-        where: { id: user.id },
-        data: { xp: { increment: xpGain } },
-        select: { xp: true, currentPoints: true, gamesPlayedInCycle: true },
-      }),
-    ])
-
+    const ratingAfter = updated.player1.rating
     const opponentLabel = botName
-      ? `${botName}${botElo ? ` (ELO ${botElo})` : ''}`
+      ? `${botName}${botElo != null ? ` (${botElo})` : ''}`
       : 'Bot'
 
     return NextResponse.json({
       success: true,
       gameId: game.id,
-      // Cycle / MMR
-      mmrBefore,
-      mmrAfter: updatedUser.currentPoints,
-      gamesInCycleBefore,
-      gamesInCycleAfter: updatedUser.gamesPlayedInCycle,
-      // XP (kept for context)
+      ratingBefore,
+      ratingAfter,
       xpBefore,
-      xpAfter: updatedUser.xp,
+      xpAfter: xpBefore + xpGain,
       xpGain,
       message: `Game saved: ${result} against ${opponentLabel}`,
     })

@@ -9,7 +9,7 @@ import {
   MoveQuality,
   MoveQualityCounts,
 } from '@/lib/analysis'
-import { BarChart2, RotateCcw, X, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { BarChart2, RotateCcw, X } from 'lucide-react'
 import type { CreateTypes } from 'canvas-confetti'
 
 // ─── Confetti helpers ───────────────────────────────────────────────────────────
@@ -74,12 +74,9 @@ interface Props {
   botName: string
   botElo?: number
   gameId: string | null
-  /** currentPoints before/after the match */
-  mmrBefore: number
-  mmrAfter: number
-  /** gamesPlayedInCycle before/after */
-  gamesInCycleBefore: number
-  gamesInCycleAfter: number
+  /** Glicko-2 rating before/after the match (for display; use Math.round) */
+  ratingBefore: number
+  ratingAfter: number
   isAnalyzing: boolean
   analysisProgress: number
   counts: MoveQualityCounts | null
@@ -91,9 +88,6 @@ const QUALITY_ORDER: MoveQuality[] = [
   'brilliant', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder',
 ]
 
-const WIN_TARGET = 10   // wins needed to rank up
-const CYCLE_GAMES = 20  // total games in a cycle
-
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export default function VictoryModal({
@@ -102,10 +96,8 @@ export default function VictoryModal({
   botName,
   botElo,
   gameId,
-  mmrBefore,
-  mmrAfter,
-  gamesInCycleBefore,
-  gamesInCycleAfter,
+  ratingBefore,
+  ratingAfter,
   isAnalyzing,
   analysisProgress,
   counts,
@@ -113,10 +105,7 @@ export default function VictoryModal({
   onNewGame,
 }: Props) {
   const router = useRouter()
-
-  // Animate win-bar from before → after
-  const [animatedWins, setAnimatedWins] = useState(mmrBefore)
-  const [showMmrDelta, setShowMmrDelta] = useState(false)
+  const [showRatingDelta, setShowRatingDelta] = useState(false)
   const confettiFiredRef = useRef(false)
 
   useEffect(() => {
@@ -124,22 +113,15 @@ export default function VictoryModal({
       confettiFiredRef.current = false
       return
     }
-
-    setAnimatedWins(mmrBefore)
-    setShowMmrDelta(false)
-
-    const t1 = setTimeout(() => setAnimatedWins(mmrAfter), 350)
-    const t2 = setTimeout(() => setShowMmrDelta(true), 800)
-
-    // Fire confetti once per win — slight delay so the modal renders first
+    setShowRatingDelta(false)
+    const t = setTimeout(() => setShowRatingDelta(true), 500)
     if (result === 'win' && !confettiFiredRef.current) {
       confettiFiredRef.current = true
-      const t3 = setTimeout(() => fireVictoryConfetti(), 150)
-      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+      const t2 = setTimeout(() => fireVictoryConfetti(), 150)
+      return () => { clearTimeout(t); clearTimeout(t2) }
     }
-
-    return () => { clearTimeout(t1); clearTimeout(t2) }
-  }, [isOpen, mmrBefore, mmrAfter, result])
+    return () => clearTimeout(t)
+  }, [isOpen, result])
 
   if (!isOpen) return null
 
@@ -149,12 +131,10 @@ export default function VictoryModal({
     draw: { label: 'Draw',      emoji: '🤝', color: 'text-blue-300',   bg: 'from-blue-900/25',   border: 'border-blue-800/50' },
   }[result]
 
-  const mmrDelta     = mmrAfter - mmrBefore
-  const mmrDeltaAbs  = Math.abs(mmrDelta).toFixed(1)
-  const winsBarPct   = Math.min(100, (animatedWins / WIN_TARGET) * 100)
-  const gamesPct     = Math.min(100, (gamesInCycleAfter / CYCLE_GAMES) * 100)
-  const winsDisplay  = Math.min(Math.round(animatedWins), WIN_TARGET)
-  const gamesDisplay = Math.min(gamesInCycleAfter, CYCLE_GAMES)
+  const oldR = Math.round(ratingBefore)
+  const newR = Math.round(ratingAfter)
+  const delta = newR - oldR
+  const deltaStr = delta > 0 ? `+${delta}` : String(delta)
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
@@ -187,77 +167,25 @@ export default function VictoryModal({
 
           <hr className="border-chess-border mb-4" />
 
-          {/* ── Cycle Progress ─────────────────────────────────────────────── */}
+          {/* ── Rating update ─────────────────────────────────────────────── */}
           <div className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-300 text-xs font-semibold uppercase tracking-widest">
-                Cycle Progress
-              </span>
-
-              {/* MMR delta badge */}
-              {showMmrDelta && (
+            <span className="text-slate-300 text-xs font-semibold uppercase tracking-widest">
+              Rating
+            </span>
+            {showRatingDelta ? (
+              <p className="mt-2 text-white font-bold tabular-nums text-lg">
+                {oldR} → {newR}{' '}
                 <span
-                  className={`flex items-center gap-1 text-sm font-extrabold tabular-nums transition-opacity duration-300 ${
-                    mmrDelta > 0 ? 'text-green-400' : mmrDelta < 0 ? 'text-red-400' : 'text-slate-400'
-                  }`}
+                  className={
+                    delta > 0 ? 'text-green-400' : delta < 0 ? 'text-red-400' : 'text-slate-400'
+                  }
                 >
-                  {mmrDelta > 0 ? (
-                    <TrendingUp className="w-4 h-4" />
-                  ) : mmrDelta < 0 ? (
-                    <TrendingDown className="w-4 h-4" />
-                  ) : (
-                    <Minus className="w-4 h-4" />
-                  )}
-                  {mmrDelta > 0 ? '+' : ''}{mmrDeltaAbs} MMR
+                  ({deltaStr})
                 </span>
-              )}
-            </div>
-
-            {/* Win progress bar */}
-            <div className="w-full bg-chess-bg rounded-full h-5 overflow-hidden border border-chess-border mb-1">
-              <div
-                className="h-full bg-gradient-to-r from-pawn-gold to-pawn-gold-hover transition-all duration-1000 ease-out rounded-full flex items-center justify-end pr-2"
-                style={{ width: `${winsBarPct}%` }}
-              >
-                {winsBarPct > 18 && (
-                  <span className="text-slate-900 text-xs font-extrabold">{winsDisplay}</span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-xs mt-1">
-              <span className="text-white font-bold tabular-nums">
-                {winsDisplay} / {WIN_TARGET} wins to rank up
-              </span>
-              {result === 'win' && (
-                <span className="text-pawn-gold font-semibold">+1 win</span>
-              )}
-            </div>
-
-            {/* Games-in-cycle strip */}
-            <div className="mt-3">
-              <div className="flex gap-0.5">
-                {Array.from({ length: CYCLE_GAMES }, (_, i) => (
-                  <div
-                    key={i}
-                    className={`flex-1 h-1.5 rounded-sm transition-colors duration-300 ${
-                      i < gamesInCycleBefore
-                        ? 'bg-slate-500'
-                        : i < gamesInCycleAfter
-                        ? 'bg-pawn-gold'
-                        : 'bg-chess-bg border border-chess-border/40'
-                    }`}
-                  />
-                ))}
-              </div>
-              <p className="text-slate-400 text-xs mt-1.5">
-                Game{' '}
-                <span className="text-white font-semibold">{gamesDisplay}</span>
-                {' '}of{' '}
-                <span className="text-white font-semibold">{CYCLE_GAMES}</span>
-                {' '}in current cycle
               </p>
-            </div>
+            ) : (
+              <p className="mt-2 text-slate-400 tabular-nums">{oldR}</p>
+            )}
           </div>
 
           <hr className="border-chess-border mb-4" />

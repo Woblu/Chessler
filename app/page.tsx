@@ -26,8 +26,7 @@ interface PuzzleTheme {
 interface LeaderboardUser {
   id: string
   name: string
-  rank: string
-  currentPoints: number
+  rating: number
 }
 
 interface Cosmetic {
@@ -272,7 +271,7 @@ export default function HomePage() {
                         <span className="text-pawn-gold font-bold">#{index + 1}</span>
                         <span className="text-white">{player.name}</span>
                       </div>
-                      <span className="text-slate-300 text-sm">{player.rank}</span>
+                      <span className="text-slate-300 text-sm tabular-nums">{Math.round(player.rating)}</span>
                     </div>
                   ))
                 ) : (

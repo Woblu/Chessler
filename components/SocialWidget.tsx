@@ -11,7 +11,7 @@ interface Friend {
   id: string
   name: string
   email: string
-  rank: string
+  rating: number
 }
 
 interface Message {
@@ -313,7 +313,7 @@ export default function SocialWidget() {
                         <div className="flex items-center justify-between mb-2">
                           <div>
                             <div className="text-white font-semibold">{friend.name}</div>
-                            <div className="text-slate-400 text-sm">{friend.rank}</div>
+                            <div className="text-slate-400 text-sm tabular-nums">{friend.rating != null ? Math.round(friend.rating) : '—'}</div>
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -354,7 +354,7 @@ export default function SocialWidget() {
                     {/* Chat Header */}
                     <div className="p-4 border-b border-chess-border">
                       <div className="text-white font-semibold">{selectedFriend.name}</div>
-                      <div className="text-slate-400 text-sm">{selectedFriend.rank}</div>
+                      <div className="text-slate-400 text-sm tabular-nums">{selectedFriend.rating != null ? Math.round(selectedFriend.rating) : '—'}</div>
                     </div>
 
                     {/* Messages */}

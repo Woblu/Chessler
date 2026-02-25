@@ -59,7 +59,7 @@ export default function Navbar() {
   useEffect(() => { setMobileOpen(false) }, [pathname])
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/')
-  const progressPct = dbUser ? Math.min((dbUser.gamesPlayedInCycle / 20) * 100, 100) : 0
+  const displayRating = dbUser?.rating != null ? Math.round(dbUser.rating) : null
 
   return (
     <nav className="bg-slate-950 border-b border-chess-border sticky top-0 z-50">
@@ -127,8 +127,9 @@ export default function Navbar() {
                     onClick={() => setDropdownOpen((o) => !o)}
                     className="flex items-center gap-2 bg-chess-card px-3 py-1.5 rounded-lg border border-chess-border hover:bg-slate-700 transition-colors min-w-0 w-full max-w-full"
                   >
-                    <RankAvatar name={dbUser.name} rank={dbUser.rank} size="sm" className="shrink-0" />
+                    <RankAvatar name={dbUser.name} size="sm" className="shrink-0" />
                     <span className="text-white font-medium text-sm truncate min-w-0">{dbUser.name}</span>
+                    {displayRating != null && <span className="text-slate-400 text-xs tabular-nums shrink-0">{displayRating}</span>}
                     <HiChevronDown className={`text-slate-400 text-sm transition-transform shrink-0 ${dropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
@@ -137,21 +138,11 @@ export default function Navbar() {
                       <div className="p-4 space-y-3">
                         {/* Avatar + name header */}
                         <div className="flex items-center gap-3 pb-3 border-b border-chess-border">
-                          <RankAvatar name={dbUser.name} rank={dbUser.rank} size="md" />
+                          <RankAvatar name={dbUser.name} size="md" />
                           <div className="min-w-0">
                             <p className="text-white font-bold text-sm truncate">{dbUser.name}</p>
-                            <p className="text-slate-400 text-xs">{dbUser.rank}</p>
+                            {displayRating != null && <p className="text-slate-400 text-xs tabular-nums">Rating {displayRating}</p>}
                           </div>
-                        </div>
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-slate-400 text-xs uppercase tracking-wide">Rank</span>
-                            <span className="text-white font-semibold text-sm truncate ml-2">{dbUser.rank}</span>
-                          </div>
-                          <div className="w-full bg-chess-bg rounded-full h-1.5 overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-pawn-gold to-pawn-gold-hover transition-all" style={{ width: `${progressPct}%` }} />
-                          </div>
-                          <p className="text-xs text-slate-400 mt-1">{dbUser.gamesPlayedInCycle} / 20 games this cycle</p>
                         </div>
                         <Link href="/profile" onClick={() => setDropdownOpen(false)}
                           className="block w-full text-center px-4 py-2 bg-pawn-gold hover:bg-pawn-gold-hover text-slate-900 font-bold rounded-lg transition-colors text-sm">
@@ -194,22 +185,14 @@ export default function Navbar() {
           {/* User info strip */}
           <div className="flex items-center justify-between py-3 mb-2 border-b border-chess-border/50">
             <div className="flex items-center gap-2">
-              <RankAvatar name={dbUser.name} rank={dbUser.rank} size="sm" />
+              <RankAvatar name={dbUser.name} size="sm" />
               <span className="text-white font-semibold truncate max-w-[160px]">{dbUser.name}</span>
-              <span className="text-slate-500 text-xs">· {dbUser.rank}</span>
+              {displayRating != null && <span className="text-slate-500 text-xs tabular-nums">· {displayRating}</span>}
             </div>
             <div className="flex items-center gap-1 text-sm">
               <GiCoins className="text-pawn-gold" />
               <span className="text-white font-bold tabular-nums">{dbUser.pawns}</span>
             </div>
-          </div>
-
-          {/* Cycle progress strip */}
-          <div className="mb-3 px-1">
-            <div className="w-full bg-chess-bg rounded-full h-1.5 overflow-hidden mb-1">
-              <div className="h-full bg-gradient-to-r from-pawn-gold to-pawn-gold-hover transition-all" style={{ width: `${progressPct}%` }} />
-            </div>
-            <p className="text-slate-500 text-xs">{dbUser.gamesPlayedInCycle} / 20 games · {Math.round(dbUser.currentPoints)} / 10 wins</p>
           </div>
 
           {/* Nav links */}

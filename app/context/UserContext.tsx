@@ -8,14 +8,14 @@ export interface DbUser {
   clerk_id: string
   name: string
   email: string
-  rank: string
-  currentPoints: number
-  gamesPlayedInCycle: number
   totalGames: number
   pieceSet: string
   boardStyle: string
   pawns: number
   xp: number
+  rating: number
+  ratingDeviation: number
+  volatility: number
 }
 
 interface UserContextValue {

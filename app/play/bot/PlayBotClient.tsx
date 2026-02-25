@@ -82,10 +82,8 @@ function PlayBotPageInner() {
   const [gameResult, setGameResult]       = useState<'win' | 'loss' | 'draw' | null>(null)
   const [showVictoryModal, setShowVictoryModal] = useState(false)
   const [gameId, setGameId]               = useState<string | null>(null)
-  const [mmrBefore, setMmrBefore]         = useState(0)
-  const [mmrAfter, setMmrAfter]           = useState(0)
-  const [gamesInCycleBefore, setGamesInCycleBefore] = useState(0)
-  const [gamesInCycleAfter, setGamesInCycleAfter]   = useState(0)
+  const [ratingBefore, setRatingBefore]   = useState(0)
+  const [ratingAfter, setRatingAfter]     = useState(0)
   const [equippedBoardUrl, setEquippedBoardUrl] = useState<string | null>(null)
   const [equippedPieceSet, setEquippedPieceSet] = useState<string | null>(null)
   const [capturedWhitePieces, setCapturedWhitePieces] = useState<string[]>([])
@@ -253,11 +251,9 @@ function PlayBotPageInner() {
       if (resp.ok) {
         const data = await resp.json()
         setGameId(data.gameId)
-        setMmrBefore(data.mmrBefore ?? 0)
-        setMmrAfter(data.mmrAfter ?? 0)
-        setGamesInCycleBefore(data.gamesInCycleBefore ?? 0)
-        setGamesInCycleAfter(data.gamesInCycleAfter ?? 0)
-        if (setDbUser) setDbUser({ ...dbUser!, xp: data.xpAfter ?? dbUser!.xp, currentPoints: data.mmrAfter ?? dbUser!.currentPoints, gamesPlayedInCycle: data.gamesInCycleAfter ?? dbUser!.gamesPlayedInCycle })
+        setRatingBefore(data.ratingBefore ?? 0)
+        setRatingAfter(data.ratingAfter ?? 0)
+        if (setDbUser) setDbUser({ ...dbUser!, xp: data.xpAfter ?? dbUser!.xp, rating: data.ratingAfter ?? dbUser!.rating, ratingDeviation: dbUser!.ratingDeviation, volatility: dbUser!.volatility })
         analyze(uciMoves)
       }
     } catch (err) { console.error('saveGameResult error:', err) }
@@ -506,7 +502,7 @@ function PlayBotPageInner() {
               </div>
 
               <div className="mt-2">
-                <PlayerHeader playerName={dbUser?.name || 'You'} rank={dbUser?.rank} points={dbUser?.currentPoints}
+                <PlayerHeader playerName={dbUser?.name || 'You'} rank={dbUser?.rating != null ? `${Math.round(dbUser.rating)}` : undefined} points={undefined}
                   capturedPieces={capturedWhitePieces}
                   isActive={chess.turn() === 'w' && !gameOver}
                   timeLeft={unlimitedTime ? undefined : whiteTime}
@@ -549,10 +545,8 @@ function PlayBotPageInner() {
           botName={selectedBot?.name ?? 'Bot'}
           botElo={selectedBot?.elo}
           gameId={gameId}
-          mmrBefore={mmrBefore}
-          mmrAfter={mmrAfter}
-          gamesInCycleBefore={gamesInCycleBefore}
-          gamesInCycleAfter={gamesInCycleAfter}
+          ratingBefore={ratingBefore}
+          ratingAfter={ratingAfter}
           isAnalyzing={isAnalyzing}
           analysisProgress={analysisProgress}
           counts={analysisResult?.counts ?? null}

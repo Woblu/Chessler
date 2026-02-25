@@ -7,14 +7,14 @@ const USER_SELECT = {
   clerk_id: true,
   name: true,
   email: true,
-  rank: true,
-  currentPoints: true,
-  gamesPlayedInCycle: true,
   totalGames: true,
   pieceSet: true,
   boardStyle: true,
   pawns: true,
   xp: true,
+  rating: true,
+  ratingDeviation: true,
+  volatility: true,
 } as const
 
 /**
@@ -78,7 +78,7 @@ export async function GET() {
         email,
         name,
         pieceSet: 'cardinal',
-        boardStyle: 'green',
+        boardStyle: 'canvas2',
       },
       select: USER_SELECT,
     })

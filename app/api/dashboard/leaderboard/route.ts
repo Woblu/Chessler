@@ -8,8 +8,8 @@ export async function GET() {
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const users = await prisma.user.findMany({
-      select: { id: true, name: true, rank: true, currentPoints: true },
-      orderBy: { currentPoints: 'desc' },
+      select: { id: true, name: true, rating: true },
+      orderBy: { rating: 'desc' },
       take: 5,
     })
 

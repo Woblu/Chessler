@@ -23,7 +23,7 @@ export async function GET(
         clerk_id: true,
         name: true,
         email: true,
-        rank: true,
+        rating: true,
       },
     })
 

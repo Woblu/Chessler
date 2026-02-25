@@ -1,0 +1,9 @@
+-- AlterTable: add Glicko-2 columns with defaults
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "rating" DOUBLE PRECISION NOT NULL DEFAULT 1200;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "ratingDeviation" DOUBLE PRECISION NOT NULL DEFAULT 350;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "volatility" DOUBLE PRECISION NOT NULL DEFAULT 0.06;
+
+-- Drop old ranking columns
+ALTER TABLE "users" DROP COLUMN IF EXISTS "rank";
+ALTER TABLE "users" DROP COLUMN IF EXISTS "currentPoints";
+ALTER TABLE "users" DROP COLUMN IF EXISTS "gamesPlayedInCycle";

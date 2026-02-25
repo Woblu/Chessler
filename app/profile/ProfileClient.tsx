@@ -17,11 +17,9 @@ interface UserStats {
   user: {
     id: string
     name: string
-    rank: string
+    rating: number
     pawns: number
     totalGames: number
-    gamesPlayedInCycle: number
-    currentPoints: number
   }
   winRate: number
   furthestRegion: string | null
@@ -47,9 +45,6 @@ export default function ProfilePage({ initialStats }: Props) {
     )
   }
 
-  const progressPercentage = (stats.user.gamesPlayedInCycle / 20) * 100
-  const pointsToRankUp = Math.max(0, 10 - stats.user.currentPoints)
-
   return (
     <div className="min-h-screen bg-chess-bg">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
@@ -63,8 +58,8 @@ export default function ProfilePage({ initialStats }: Props) {
               <h1 className="text-2xl sm:text-4xl font-extrabold text-white mb-1 sm:mb-2 truncate">{stats.user.name}</h1>
               <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                 <div className="inline-block bg-gradient-to-br from-pawn-gold to-pawn-gold-hover text-slate-900 px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg">
-                  <div className="text-xs sm:text-sm opacity-90">Current Rank</div>
-                  <div className="text-lg sm:text-2xl font-bold">{stats.user.rank}</div>
+                  <div className="text-xs sm:text-sm opacity-90">Rating</div>
+                  <div className="text-lg sm:text-2xl font-bold">{Math.round(stats.user.rating)}</div>
                 </div>
                 <div className="text-slate-300 text-sm sm:text-base">
                   <span className="font-semibold text-white">{stats.user.totalGames}</span> Total Games
@@ -163,52 +158,6 @@ export default function ProfilePage({ initialStats }: Props) {
           )}
         </div>
 
-        {/* Progress Bar */}
-        <div className="bg-chess-card rounded-xl shadow-lg p-8 mb-6 border border-chess-border">
-          <h2 className="text-2xl font-extrabold text-white mb-6">Cycle Progress</h2>
-          <div className="mb-4">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium text-slate-300">Games Played</span>
-              <span className="text-sm font-semibold text-slate-200">
-                {stats.user.gamesPlayedInCycle} / 20
-              </span>
-            </div>
-            <div className="w-full bg-chess-bg rounded-full h-8 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-pawn-gold to-pawn-gold-hover transition-all duration-500 ease-out flex items-center justify-center"
-                style={{ width: `${Math.min(progressPercentage, 100)}%` }}
-              >
-                {progressPercentage > 15 && (
-                  <span className="text-sm font-medium text-slate-900">
-                    {Math.round(progressPercentage)}%
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium text-slate-300">Points Accumulated</span>
-              <span className="text-sm font-semibold text-slate-200">
-                {stats.user.currentPoints.toFixed(1)} / 10.0
-              </span>
-            </div>
-            <div className="w-full bg-chess-bg rounded-full h-8 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-pawn-gold-hover to-pawn-gold transition-all duration-500 ease-out flex items-center justify-center"
-                style={{ width: `${Math.min((stats.user.currentPoints / 10) * 100, 100)}%` }}
-              >
-                {stats.user.currentPoints >= 5 && (
-                  <span className="text-sm font-medium text-slate-900">
-                    {Math.round((stats.user.currentPoints / 10) * 100)}%
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Quick Actions */}
         <div className="bg-chess-card rounded-xl shadow-lg p-8 border border-chess-border">
           <h2 className="text-2xl font-extrabold text-white mb-6">Quick Actions</h2>
@@ -230,25 +179,17 @@ export default function ProfilePage({ initialStats }: Props) {
           </div>
         </div>
 
-        {/* Ranking Rules */}
+        {/* Rating system */}
         <div className="mt-6 bg-chess-card rounded-xl shadow-lg p-8 border border-chess-border">
-          <h2 className="text-2xl font-extrabold text-white mb-4">Ranking System</h2>
+          <h2 className="text-2xl font-extrabold text-white mb-4">Rating (Glicko-2)</h2>
           <div className="space-y-3 text-slate-300">
             <div className="flex items-start">
               <span className="text-pawn-gold mr-3">✓</span>
-              <span>Win = 1 point, Loss = 0 points, Draw = 0.5 points</span>
+              <span>Industry-standard Glicko-2 rating — same system used by Lichess and other major chess platforms.</span>
             </div>
             <div className="flex items-start">
               <span className="text-pawn-gold mr-3">✓</span>
-              <span>Rank up when you reach 10+ points within 20 games</span>
-            </div>
-            <div className="flex items-start">
-              <span className="text-pawn-gold mr-3">✓</span>
-              <span>Bonus: +0.5 points if you beat a higher-ranked player</span>
-            </div>
-            <div className="flex items-start">
-              <span className="text-pawn-gold mr-3">✓</span>
-              <span>Cycle resets after 20 games or upon ranking up</span>
+              <span>Your rating updates after every game based on result and opponent strength.</span>
             </div>
           </div>
         </div>

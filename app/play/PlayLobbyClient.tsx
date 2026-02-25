@@ -130,7 +130,7 @@ export default function PlayLobbyClient() {
     socket.emit('join_queue', {
       playerId:    dbUser.id,
       name:        dbUser.name,
-      mmr:         dbUser.currentPoints,
+      mmr:         dbUser.rating,
       timeControl: { initial: selectedTC.initial, increment: selectedTC.increment },
     })
     setInQueue(true)
@@ -163,7 +163,7 @@ export default function PlayLobbyClient() {
           <h2 className="text-2xl font-extrabold text-pawn-gold mb-1">Match Found!</h2>
           <p className="text-slate-300 mb-4">
             vs <span className="text-white font-bold">{matchInfo.opponentName}</span>
-            <span className="text-slate-500 text-sm ml-1">({matchInfo.opponentMmr.toFixed(0)} MMR)</span>
+            <span className="text-slate-500 text-sm ml-1">({Math.round(matchInfo.opponentMmr)} rating)</span>
           </p>
           <div className="flex items-center justify-center gap-4 mb-5">
             <div className="bg-chess-bg rounded-lg px-4 py-2 text-center">
@@ -198,9 +198,7 @@ export default function PlayLobbyClient() {
           {dbUser && (
             <div className="inline-flex items-center gap-2 mt-3 bg-chess-card border border-chess-border rounded-full px-4 py-1.5 text-sm">
               <TrendingUp className="w-3.5 h-3.5 text-pawn-gold" />
-              <span className="text-pawn-gold font-bold">{dbUser.currentPoints.toFixed(1)} MMR</span>
-              <span className="text-slate-500">·</span>
-              <span className="text-slate-300">{dbUser.rank}</span>
+              <span className="text-pawn-gold font-bold tabular-nums">{Math.round(dbUser.rating)} rating</span>
             </div>
           )}
         </div>

@@ -36,13 +36,13 @@ export async function getUserFromToken(token: string) {
       clerk_id: true,
       name: true,
       email: true,
-      rank: true,
-      currentPoints: true,
-      gamesPlayedInCycle: true,
       totalGames: true,
       pieceSet: true,
       boardStyle: true,
       pawns: true,
+      rating: true,
+      ratingDeviation: true,
+      volatility: true,
     },
   })
 

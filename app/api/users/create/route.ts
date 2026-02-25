@@ -31,14 +31,11 @@ export async function POST(request: NextRequest) {
       || clerkUser?.username
       || email
 
-    const { rank } = await request.json().catch(() => ({ rank: undefined }))
-
     const user = await prisma.user.create({
       data: {
         clerk_id: userId,
         name,
         email,
-        rank: rank || 'Beginner',
       },
     })
 

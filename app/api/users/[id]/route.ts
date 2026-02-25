@@ -15,9 +15,7 @@ export async function GET(
       select: {
         id: true,
         name: true,
-        rank: true,
-        currentPoints: true,
-        gamesPlayedInCycle: true,
+        rating: true,
         totalGames: true,
       },
     })

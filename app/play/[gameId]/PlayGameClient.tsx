@@ -24,7 +24,7 @@ import { useDbUser }       from '@/app/context/UserContext'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface PlayerInfo { id: string; name: string; rank: string }
+interface PlayerInfo { id: string; name: string; rank?: string; rating?: number }
 
 interface ServerGameState {
   fen: string
@@ -111,10 +111,8 @@ export default function PlayGameClient({ gameId }: Props) {
   const [showVictoryModal,    setShowVictoryModal]    = useState(false)
   const [gameResult,          setGameResult]          = useState<'win' | 'loss' | 'draw' | null>(null)
   const [gameEndReason,       setGameEndReason]       = useState('')
-  const [mmrBefore,           setMmrBefore]           = useState(0)
-  const [mmrAfter,            setMmrAfter]            = useState(0)
-  const [gamesInCycleBefore,  setGamesInCycleBefore]  = useState(0)
-  const [gamesInCycleAfter,   setGamesInCycleAfter]   = useState(0)
+  const [ratingBefore, setRatingBefore] = useState(0)
+  const [ratingAfter,  setRatingAfter]  = useState(0)
 
   // ── Opponent disconnect countdown ─────────────────────────────────────────
   const [oppDisconnected,  setOppDisconnected]  = useState(false)
@@ -143,12 +141,9 @@ export default function PlayGameClient({ gameId }: Props) {
       .catch(() => {})
   }, [])
 
-  // ── Snapshot MMR before game ──────────────────────────────────────────────
+  // Snapshot rating before game (for post-game modal)
   useEffect(() => {
-    if (dbUser) {
-      setMmrBefore(dbUser.currentPoints)
-      setGamesInCycleBefore(dbUser.gamesPlayedInCycle)
-    }
+    if (dbUser?.rating != null) setRatingBefore(dbUser.rating)
   }, [dbUser?.id])
 
   // ── Socket lifecycle ──────────────────────────────────────────────────────
@@ -226,13 +221,10 @@ export default function PlayGameClient({ gameId }: Props) {
         ? 'win' : 'loss'
       setGameResult(result)
 
-      // Fetch updated stats (after processGameResult ran on server)
+      // Fetch updated rating (after processGameResult ran on server)
       try {
         const me = await fetch('/api/auth/me').then((r) => r.json())
-        if (me?.currentPoints !== undefined) {
-          setMmrAfter(me.currentPoints)
-          setGamesInCycleAfter(me.gamesPlayedInCycle)
-        }
+        if (me?.user?.rating != null) setRatingAfter(me.user.rating)
       } catch {}
 
       // Start post-game analysis
@@ -365,7 +357,7 @@ export default function PlayGameClient({ gameId }: Props) {
           <div className="flex items-center gap-2 min-w-0">
             <h1 className="text-base sm:text-xl font-bold text-white truncate">
               vs <span className="text-pawn-gold">{oppPlayer?.name}</span>
-              <span className="text-slate-400 text-xs sm:text-sm font-normal ml-1.5">{oppPlayer?.rank}</span>
+              <span className="text-slate-400 text-xs sm:text-sm font-normal ml-1.5">{oppPlayer?.rating != null ? Math.round(oppPlayer.rating) : oppPlayer?.rank}</span>
             </h1>
             {gameEndReason && (
               <span className="text-slate-400 text-xs">{gameEndReason}</span>
@@ -433,7 +425,7 @@ export default function PlayGameClient({ gameId }: Props) {
               <div className="mb-2">
                 <PlayerHeader
                   playerName={oppPlayer?.name ?? 'Opponent'}
-                  rank={oppPlayer?.rank}
+                  rank={oppPlayer?.rating != null ? `${Math.round(oppPlayer.rating)}` : oppPlayer?.rank}
                   capturedPieces={userColor === 'white' ? capturedBlack : capturedWhite}
                   isActive={!isUserTurn && !serverState.gameOver}
                   timeLeft={userColor === 'white' ? blackTimeSec : whiteTimeSec}
@@ -473,8 +465,8 @@ export default function PlayGameClient({ gameId }: Props) {
               <div className="mt-2">
                 <PlayerHeader
                   playerName={dbUser?.name ?? 'You'}
-                  rank={dbUser?.rank}
-                  points={dbUser?.currentPoints}
+                  rank={dbUser?.rating != null ? `${Math.round(dbUser.rating)}` : undefined}
+                  points={undefined}
                   capturedPieces={userColor === 'white' ? capturedWhite : capturedBlack}
                   isActive={isUserTurn && !serverState.gameOver}
                   timeLeft={userColor === 'white' ? whiteTimeSec : blackTimeSec}
@@ -518,10 +510,8 @@ export default function PlayGameClient({ gameId }: Props) {
           result={gameResult ?? 'draw'}
           botName={oppPlayer?.name ?? 'Opponent'}
           gameId={gameId}
-          mmrBefore={mmrBefore}
-          mmrAfter={mmrAfter}
-          gamesInCycleBefore={gamesInCycleBefore}
-          gamesInCycleAfter={gamesInCycleAfter}
+          ratingBefore={ratingBefore}
+          ratingAfter={ratingAfter}
           isAnalyzing={isAnalyzing}
           analysisProgress={analysisProgress}
           counts={analysisResult?.counts ?? null}

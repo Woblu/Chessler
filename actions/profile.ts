@@ -12,11 +12,9 @@ interface UserStats {
   user: {
     id: string
     name: string
-    rank: string
+    rating: number
     pawns: number
     totalGames: number
-    gamesPlayedInCycle: number
-    currentPoints: number
   }
   winRate: number
   furthestRegion: string | null
@@ -32,11 +30,9 @@ export async function getUserStats(userId: string): Promise<UserStats | null> {
       select: {
         id: true,
         name: true,
-        rank: true,
+        rating: true,
         pawns: true,
         totalGames: true,
-        gamesPlayedInCycle: true,
-        currentPoints: true,
       },
     })
 
