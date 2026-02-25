@@ -3,10 +3,9 @@
 import { useEffect } from 'react'
 
 /**
- * Unregister all service workers on load so that:
- * - Cached workbox (workbox-f1770938.js) stops running and no longer throws "Failed to execute 'match' on 'Cache'"
- * - Browser fetches fresh JS so socket URL and other fixes take effect instead of cached localhost bundle
- * Runs once per load; safe to run on every page.
+ * Unregister any legacy workbox service workers from the previous PWA setup.
+ * Keeps the app running without Cache API errors. PWA installability now relies
+ * on the web app manifest only (no service worker required for install).
  */
 export default function UnregisterServiceWorker() {
   useEffect(() => {
