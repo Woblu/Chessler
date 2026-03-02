@@ -5,12 +5,31 @@ import path from 'path'
 const prisma = new PrismaClient()
 
 // Asset sources - Expanded list from Lichess
+// This list mirrors the official folder names under https://github.com/lichess-org/lila/tree/master/public/piece
+// Add more here over time if Lichess introduces new sets.
 const PIECE_SETS = [
-  'cburnett', 'alpha', 'fantasy', 'shapes', 'spatial', 'california', 
-  'pirouetti', 'chessnut', 'chess7', 'companion', 
-  'riohacha', 'kosal', 'leipzig', 'governor',
-  'dubrovny', 'icpieces', 'cardinal', 'gioco', 'pixel', 'maestro',
-  'fresca', 'tatiana'
+  'cburnett',
+  'alpha',
+  'fantasy',
+  'shapes',
+  'spatial',
+  'california',
+  'pirouetti',
+  'chessnut',
+  'chess7',
+  'companion',
+  'riohacha',
+  'kosal',
+  'leipzig',
+  'governor',
+  'dubrovny',
+  'icpieces',
+  'cardinal',
+  'gioco',
+  'pixel',
+  'maestro',
+  'fresca',
+  'tatiana',
 ]
 const PIECES = ['wK', 'wQ', 'wR', 'wB', 'wN', 'wP', 'bK', 'bQ', 'bR', 'bB', 'bN', 'bP']
 const BOARD_TEXTURES = [

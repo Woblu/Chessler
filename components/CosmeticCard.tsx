@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { purchaseCosmetic, equipCosmetic } from '@/actions/economy'
+import { useDbUser } from '@/app/context/UserContext'
 import { GiCoins, GiChessPawn } from 'react-icons/gi'
 
 interface Cosmetic {
@@ -32,6 +33,7 @@ export default function CosmeticCard({
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const { dbUser, setDbUser } = useDbUser()
 
   const handlePurchase = async () => {
     try {
@@ -42,6 +44,15 @@ export default function CosmeticCard({
 
       if (result.success) {
         setMessage('Purchase successful!')
+        // Refresh top-bar pawns immediately by refetching the latest user profile
+        try {
+          const me = await fetch('/api/auth/me').then((r) => (r.ok ? r.json() : null))
+          if (me?.user && dbUser) {
+            setDbUser({ ...dbUser, ...me.user })
+          }
+        } catch {
+          // ignore
+        }
         setTimeout(() => {
           router.refresh()
         }, 1000)

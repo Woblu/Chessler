@@ -21,7 +21,7 @@ interface Puzzle {
 function PuzzlePlayPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { dbUser } = useDbUser()
+  const { dbUser, setDbUser } = useDbUser()
   const theme = searchParams.get('theme') || 'mate'
 
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
@@ -39,6 +39,7 @@ function PuzzlePlayPageInner() {
   const [validMoves, setValidMoves] = useState<Square[]>([])
   const [minRating, setMinRating] = useState(800)
   const [maxRating, setMaxRating] = useState(1500)
+  const [userColor, setUserColor] = useState<'white' | 'black'>('white')
 
   const chessRef = useRef<Chess | null>(null)
 
@@ -77,6 +78,9 @@ function PuzzlePlayPageInner() {
       const newChess = new Chess(puzzleData.fen)
       setChess(newChess)
       chessRef.current = newChess
+      // Default user color to the side to move from the initial FEN;
+      // this will be refined after the opponent's blunder is auto-played.
+      setUserColor(newChess.turn() === 'w' ? 'white' : 'black')
 
       // Auto-play first move (opponent's blunder) after a short delay
       if (moves.length > 0) {
@@ -88,6 +92,9 @@ function PuzzlePlayPageInner() {
             chessRef.current = chessCopy
             setCurrentMoveIndex(1)
             setIsUserTurn(true)
+            // After the opponent's blunder, it's the user's turn.
+            // Use that side as the persistent board orientation.
+            setUserColor(chessCopy.turn() === 'w' ? 'white' : 'black')
           }
           setIsAutoPlaying(false)
         }, 500)
@@ -272,8 +279,13 @@ function PuzzlePlayPageInner() {
 
     // Award pawns
     try {
-      await awardPawns(dbUser!.id, puzzle.pawnReward, 'puzzle_solved')
-      
+      const result = await awardPawns(dbUser!.id, puzzle.pawnReward, 'puzzle_solved')
+
+      // Update navbar/user context pawn balance immediately so the counter stays in sync
+      if (result?.success && typeof result.newBalance === 'number') {
+        setDbUser((prev) => (prev ? { ...prev, pawns: result.newBalance } : prev))
+      }
+
       // Evaluate quests for puzzle solved
       const { evaluateQuests } = await import('@/actions/quests')
       await evaluateQuests(dbUser!.id, 'PUZZLE_SOLVED', 1).catch((error) => {
@@ -396,7 +408,7 @@ function PuzzlePlayPageInner() {
               position={chess.fen()}
               onPieceDrop={onDrop}
               onSquareClick={onSquareClick}
-              boardOrientation="white"
+              boardOrientation={userColor}
               arePiecesDraggable={isUserTurn && !isAutoPlaying}
               customSquareStyles={{
                 ...(selectedSquare && {

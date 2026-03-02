@@ -221,10 +221,17 @@ export default function PlayGameClient({ gameId }: Props) {
         ? 'win' : 'loss'
       setGameResult(result)
 
-      // Fetch updated rating (after processGameResult ran on server)
+      // Fetch updated profile (rating, pawns, etc.) after server-side processing
       try {
         const me = await fetch('/api/auth/me').then((r) => r.json())
-        if (me?.user?.rating != null) setRatingAfter(me.user.rating)
+        if (me?.user) {
+          if (me.user.rating != null) setRatingAfter(me.user.rating)
+          // Keep global user context (navbar) in sync with server-side changes (pawns, xp, rating, cosmetics).
+          if (dbUser) {
+            // Preserve fields that /api/auth/me does not return, if any, by spreading existing first.
+            setDbUser({ ...dbUser, ...me.user })
+          }
+        }
       } catch {}
 
       // Start post-game analysis

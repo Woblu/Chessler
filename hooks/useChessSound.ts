@@ -16,6 +16,9 @@ export function useChessSound() {
 
   const play = useCallback((key: SoundKey) => {
     if (typeof window === 'undefined') return
+    // Respect user audio preference from Settings (stored in localStorage)
+    const enabled = window.localStorage.getItem('settings.enableSoundEffects')
+    if (enabled === 'false') return
     try {
       let audio = cache.current.get(key)
       if (!audio) {

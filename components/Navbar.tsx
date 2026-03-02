@@ -38,11 +38,20 @@ export default function Navbar() {
   const { isSignedIn } = useUser()
   const { dbUser } = useDbUser()
   const [mounted, setMounted] = useState(false)
+  const [showRating, setShowRating] = useState(true)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    setMounted(true)
+    if (typeof window !== 'undefined') {
+      const pref = window.localStorage.getItem('settings.showRatingInNavbar')
+      if (pref != null) {
+        setShowRating(pref === 'true')
+      }
+    }
+  }, [])
 
   // Close profile dropdown on outside click
   useEffect(() => {
@@ -59,7 +68,8 @@ export default function Navbar() {
   useEffect(() => { setMobileOpen(false) }, [pathname])
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/')
-  const displayRating = dbUser?.rating != null ? Math.round(dbUser.rating) : null
+  const numericRating = dbUser?.rating != null ? Math.round(dbUser.rating) : null
+  const displayRating = showRating ? numericRating : null
 
   return (
     <nav className="bg-slate-950 border-b border-chess-border sticky top-0 z-50">

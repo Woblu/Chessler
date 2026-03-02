@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
-import { getUserFromToken } from '@/lib/auth'
 import { Chess } from 'chess.js'
 import type { Prisma } from '@prisma/client'
 
@@ -13,19 +12,15 @@ export async function GET(
     const { userId } = await auth()
     if (!userId) return new NextResponse('Unauthorized', { status: 401 })
 
-    const token = request.cookies.get('auth-token')?.value
+    // Use Clerk identity to look up the app user, instead of a legacy auth-token cookie.
+    const user = await prisma.user.findUnique({
+      where: { clerk_id: userId },
+      select: { id: true },
+    })
 
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      )
-    }
-
-    const user = await getUserFromToken(token)
     if (!user) {
       return NextResponse.json(
-        { error: 'Invalid token' },
+        { error: 'User not found' },
         { status: 401 }
       )
     }
