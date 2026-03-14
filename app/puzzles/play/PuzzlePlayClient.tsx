@@ -282,8 +282,8 @@ function PuzzlePlayPageInner() {
       const result = await awardPawns(dbUser!.id, puzzle.pawnReward, 'puzzle_solved')
 
       // Update navbar/user context pawn balance immediately so the counter stays in sync
-      if (result?.success && typeof result.newBalance === 'number') {
-        setDbUser((prev) => (prev ? { ...prev, pawns: result.newBalance } : prev))
+      if (result?.success && typeof result.newBalance === 'number' && dbUser) {
+        setDbUser({ ...dbUser, pawns: result.newBalance })
       }
 
       // Evaluate quests for puzzle solved
