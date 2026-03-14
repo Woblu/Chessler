@@ -1,4 +1,4 @@
-import Glicko2 from 'glicko2'
+import { Glicko2 } from 'glicko2'
 
 export interface Glicko2PlayerState {
   rating: number
