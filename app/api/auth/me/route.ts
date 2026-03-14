@@ -41,8 +41,14 @@ export async function GET() {
     })
     if (user) return NextResponse.json({ user })
 
-    // 2. Need to provision — fetch Clerk profile
-    const clerkUser = await currentUser()
+    // 2. Need to provision — fetch Clerk profile (can throw in some environments)
+    let clerkUser
+    try {
+      clerkUser = await currentUser()
+    } catch (err) {
+      console.error('Error fetching Clerk currentUser in /api/auth/me:', err)
+      return NextResponse.json({ error: 'Could not load profile' }, { status: 503 })
+    }
     if (!clerkUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -63,27 +69,70 @@ export async function GET() {
     // 3. Existing row with same email (pre-Clerk account) → link it
     const existingByEmail = await prisma.user.findUnique({ where: { email } })
     if (existingByEmail) {
-      user = await prisma.user.update({
-        where: { id: existingByEmail.id },
-        data: { clerk_id: userId },
-        select: USER_SELECT,
-      })
-      return NextResponse.json({ user })
+      try {
+        user = await prisma.user.update({
+          where: { id: existingByEmail.id },
+          data: { clerk_id: userId },
+          select: USER_SELECT,
+        })
+        return NextResponse.json({ user })
+      } catch (err: unknown) {
+        // P2002 = unique constraint; another row may already have this clerk_id — fetch by clerk_id
+        const code = (err as { code?: string })?.code
+        if (code === 'P2002') {
+          const byClerk = await prisma.user.findUnique({
+            where: { clerk_id: userId },
+            select: USER_SELECT,
+          })
+          if (byClerk) return NextResponse.json({ user: byClerk })
+        }
+        throw err
+      }
     }
 
-    // 4. Brand-new user – give default cosmetics (Cardinal pieces + Green board)
-    user = await prisma.user.create({
-      data: {
-        clerk_id: userId,
-        email,
-        name,
-        pieceSet: 'cardinal',
-        boardStyle: 'canvas2',
-      },
-      select: USER_SELECT,
-    })
+    // 4. Brand-new user – create row and optionally seed default cosmetics
+    try {
+      user = await prisma.user.create({
+        data: {
+          clerk_id: userId,
+          email,
+          name,
+          pieceSet: 'cardinal',
+          boardStyle: 'canvas2',
+        },
+        select: USER_SELECT,
+      })
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code
+      if (code === 'P2002') {
+        // Unique constraint: e.g. race — another request created or linked this user
+        const byClerk = await prisma.user.findUnique({
+          where: { clerk_id: userId },
+          select: USER_SELECT,
+        })
+        if (byClerk) return NextResponse.json({ user: byClerk })
+        const byEmail = await prisma.user.findUnique({
+          where: { email },
+          select: USER_SELECT,
+        })
+        if (byEmail) {
+          try {
+            user = await prisma.user.update({
+              where: { id: byEmail.id },
+              data: { clerk_id: userId },
+              select: USER_SELECT,
+            })
+            return NextResponse.json({ user })
+          } catch {
+            user = byEmail
+            return NextResponse.json({ user })
+          }
+        }
+      }
+      throw err
+    }
 
-    // Seed default owned & equipped cosmetics for new users
+    // Seed default owned & equipped cosmetics for new users (non-blocking)
     try {
       const defaultCosmetics = await prisma.cosmetic.findMany({
         where: {

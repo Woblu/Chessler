@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useUser, useClerk } from '@clerk/nextjs'
 import { GiCrossedSwords, GiBookCover, GiPuzzle, GiOpenTreasureChest, GiWorld, GiTrophy } from 'react-icons/gi'
 import { assignDailyQuests } from '@/actions/quests'
 import { useDbUser } from '@/app/context/UserContext'
@@ -37,7 +38,9 @@ interface Cosmetic {
 }
 
 export default function HomePage() {
-  const { dbUser, isUserLoading } = useDbUser()
+  const { isSignedIn } = useUser()
+  const { signOut } = useClerk()
+  const { dbUser, isUserLoading, loadError, refetchUser } = useDbUser()
   const [boss, setBoss] = useState<Boss | null>(null)
   const [openings, setOpenings] = useState<Opening[]>([])
   const [puzzleTheme, setPuzzleTheme] = useState<PuzzleTheme | null>(null)
@@ -96,6 +99,38 @@ export default function HomePage() {
     return (
       <div className="min-h-screen bg-chess-bg flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-pawn-gold border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    )
+  }
+
+  // Signed in with Clerk but app profile failed to load — show retry so we don't loop to /login
+  if (isSignedIn && !dbUser) {
+    return (
+      <div className="min-h-screen bg-chess-bg flex items-center justify-center p-4">
+        <div className="bg-chess-card border border-chess-border rounded-xl p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-500/20 flex items-center justify-center">
+            <span className="text-3xl">⚠️</span>
+          </div>
+          <h1 className="text-xl font-bold text-white mb-2">Couldn’t load your profile</h1>
+          <p className="text-slate-400 text-sm mb-6">
+            Try again or sign out and sign back in to fix the issue.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => refetchUser()}
+              className="px-5 py-2.5 bg-pawn-gold hover:bg-pawn-gold-hover text-slate-900 font-bold rounded-lg transition-colors"
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              onClick={() => signOut?.({ redirectUrl: '/' })}
+              className="px-5 py-2.5 bg-chess-bg border border-chess-border text-slate-300 hover:bg-slate-700 rounded-lg transition-colors"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
       </div>
     )
   }

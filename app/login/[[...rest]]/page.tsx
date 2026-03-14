@@ -1,6 +1,25 @@
-import { SignIn } from '@clerk/nextjs'
+'use client'
+
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { SignIn, useAuth } from '@clerk/nextjs'
 
 export default function LoginPage() {
+  const { isSignedIn } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (isSignedIn === true) router.replace('/')
+  }, [isSignedIn, router])
+
+  if (isSignedIn === true) {
+    return (
+      <div className="min-h-screen bg-chess-bg flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-pawn-gold border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-chess-bg flex items-center justify-center p-4">
       <div className="flex flex-col items-center gap-6">
