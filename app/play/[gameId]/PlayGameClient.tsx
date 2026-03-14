@@ -73,7 +73,7 @@ interface Props { gameId: string }
 
 export default function PlayGameClient({ gameId }: Props) {
   const router        = useRouter()
-  const { dbUser }    = useDbUser()
+  const { dbUser, setDbUser } = useDbUser()
   const { isReady, getEvaluation } = useStockfish()
   const { playMove, playCapture, playCheck, playGameEnd } = useChessSound()
   const { isAnalyzing, progress: analysisProgress, result: analysisResult, analyze } = useGameAnalysis()
