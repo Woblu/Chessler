@@ -24,6 +24,13 @@ function PuzzlePlayPageInner() {
   const { dbUser, setDbUser } = useDbUser()
   const theme = searchParams.get('theme') || 'mate'
 
+  const resolveTheme = (t: string) => {
+    if (t !== 'random') return t
+    // Keep this list in sync with `app/puzzles/PuzzlesClient.tsx` (excluding "random").
+    const themes = ['mate', 'fork', 'pin', 'sacrifice', 'endgame']
+    return themes[Math.floor(Math.random() * themes.length)] ?? 'mate'
+  }
+
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
   const [chess, setChess] = useState<Chess | null>(null)
   const [moveSequence, setMoveSequence] = useState<string[]>([])
@@ -60,7 +67,8 @@ function PuzzlePlayPageInner() {
       setIsUserTurn(false)
       setIsAutoPlaying(false)
 
-      const result = await getRandomPuzzleByTheme(theme, minRating, maxRating)
+      const actualTheme = resolveTheme(theme)
+      const result = await getRandomPuzzleByTheme(actualTheme, minRating, maxRating)
 
       if (!result.success || !result.puzzle) {
         setError(result.error || 'Failed to load puzzle')

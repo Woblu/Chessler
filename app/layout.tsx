@@ -6,6 +6,7 @@ import './globals.css'
 import Navbar from '@/components/Navbar'
 import { UserProvider } from '@/app/context/UserContext'
 import UnregisterServiceWorker from '@/components/UnregisterServiceWorker'
+import StockfishWarmup from '@/components/StockfishWarmup'
 
 // Deferred — not needed on first paint
 const SocialWidget = dynamic(() => import('@/components/SocialWidget'), { ssr: false })
@@ -61,6 +62,7 @@ export default function RootLayout({
         <body>
           <UnregisterServiceWorker />
           <UserProvider>
+            <StockfishWarmup />
             <Navbar />
             {children}
             <SocialWidget />

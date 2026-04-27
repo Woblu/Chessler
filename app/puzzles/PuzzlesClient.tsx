@@ -12,6 +12,13 @@ interface PuzzleCategory {
 
 const categories: PuzzleCategory[] = [
   {
+    name: 'Random',
+    theme: 'random',
+    description: 'A new random theme every time',
+    icon: '🎲',
+    color: 'from-slate-600 to-slate-800',
+  },
+  {
     name: 'Checkmates',
     theme: 'mate',
     description: 'Find the checkmate in the position',

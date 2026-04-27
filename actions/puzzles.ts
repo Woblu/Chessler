@@ -14,29 +14,32 @@ export async function getRandomPuzzleByTheme(
   maxRating: number = 1500
 ): Promise<{ success: boolean; puzzle?: any; error?: string }> {
   try {
-    // Find puzzles that contain the theme in their themes string and are within rating range
-    const puzzles = await prisma.puzzle.findMany({
-      where: {
-        themes: {
-          contains: theme,
-        },
-        rating: {
-          gte: minRating,
-          lte: maxRating,
-        },
-      },
-    })
+    const where = {
+      themes: { contains: theme },
+      rating: { gte: minRating, lte: maxRating },
+    } as const
 
-    if (puzzles.length === 0) {
+    // Avoid loading the full matching set into memory.
+    // Use count + random skip to fetch exactly one record.
+    const total = await prisma.puzzle.count({ where })
+    if (total === 0) {
       return {
         success: false,
         error: `No puzzles found for theme: ${theme} with rating ${minRating}-${maxRating}`,
       }
     }
 
-    // Select a random puzzle
-    const randomIndex = Math.floor(Math.random() * puzzles.length)
-    const puzzle = puzzles[randomIndex]
+    const skip = Math.floor(Math.random() * total)
+    const puzzle = await prisma.puzzle.findFirst({
+      where,
+      orderBy: { id: 'asc' },
+      skip,
+      select: { id: true, fen: true, moves: true, rating: true, themes: true, pawnReward: true },
+    })
+
+    if (!puzzle) {
+      return { success: false, error: 'Failed to load a puzzle (unexpected empty result)' }
+    }
 
     return {
       success: true,
