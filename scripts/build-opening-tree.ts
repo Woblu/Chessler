@@ -66,11 +66,22 @@ async function fetchLichessMoves(fen: string): Promise<LichessMove[]> {
       })
 
       res.on('end', () => {
+        // Lichess occasionally returns HTML (rate limit / upstream error / captive portal)
+        // which would otherwise spam JSON.parse errors during long runs.
+        const ct = String(res.headers['content-type'] ?? '').toLowerCase()
+        const looksLikeHtml = data.trimStart().startsWith('<')
+        if (looksLikeHtml || (ct && !ct.includes('application/json'))) {
+          console.warn(
+            `⚠️  Lichess explorer returned non-JSON (status ${res.statusCode}). Skipping this position.`
+          )
+          resolve([])
+          return
+        }
         try {
           const parsed: LichessResponse = JSON.parse(data)
           resolve(parsed.moves || [])
         } catch (error) {
-          console.error('Error parsing Lichess response:', error)
+          console.warn('⚠️  Error parsing Lichess response. Skipping this position.')
           resolve([])
         }
       })

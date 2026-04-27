@@ -51,7 +51,8 @@ export default function PlayerHeader({
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
 
-    if (isActive && (timeLeft === undefined || timeLeft > 0)) {
+    // Unlimited clock: parent passes `timeLeft: undefined` — do not tick locally.
+    if (isActive && timeLeft !== undefined && timeLeft > 0) {
       intervalRef.current = setInterval(() => {
         setDisplayTime((prev) => {
           const next = prev - 1
@@ -70,7 +71,7 @@ export default function PlayerHeader({
     }
 
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [isActive]) // intentionally only re-run when isActive changes
+  }, [isActive, timeLeft, onTick, onTimeUp])
 
   const formatTime = (secs: number): string => {
     const m = Math.floor(secs / 60)
@@ -98,8 +99,8 @@ export default function PlayerHeader({
     <div
       className={`flex items-center justify-between px-3 py-2 rounded-lg border-2 transition-all duration-200 ${
         isActive
-          ? 'bg-[#3a5a4a] border-[#4a7c59] shadow-lg'
-          : 'bg-[#2d2d2d] border-[#3d3d3d]'
+          ? 'bg-chess-bg border-pawn-gold/40 shadow-lg'
+          : 'bg-chess-bg border-chess-border'
       }`}
     >
       {/* Player info */}
@@ -134,24 +135,26 @@ export default function PlayerHeader({
       </div>
 
       {/* Clock */}
-      {timeLeft !== undefined && (
-        <div
-          className={`font-mono font-extrabold tabular-nums text-lg sm:text-2xl shrink-0 px-2 py-0.5 rounded transition-colors ${
-            isCritical
-              ? 'text-red-400 animate-pulse bg-red-900/20'
-              : isLowTime
-              ? 'text-orange-400'
-              : isActive
-              ? 'text-[#f0d9b5]'
+      <div
+        className={`font-mono font-extrabold tabular-nums text-lg sm:text-2xl shrink-0 px-2 py-0.5 rounded transition-colors ${
+          timeLeft === undefined
+            ? isActive
+              ? 'text-pawn-gold'
               : 'text-[#8b8b8b]'
-          }`}
-        >
-          {formatTime(displayTime)}
-          {increment > 0 && (
-            <span className="text-xs text-slate-500 ml-1 font-normal">+{increment}</span>
-          )}
-        </div>
-      )}
+            : isCritical
+            ? 'text-red-400 animate-pulse bg-red-900/20'
+            : isLowTime
+            ? 'text-orange-400'
+            : isActive
+            ? 'text-pawn-gold'
+            : 'text-[#8b8b8b]'
+        }`}
+      >
+        {timeLeft === undefined ? '∞' : formatTime(displayTime)}
+        {timeLeft !== undefined && increment > 0 && (
+          <span className="text-xs text-slate-500 ml-1 font-normal">+{increment}</span>
+        )}
+      </div>
     </div>
   )
 }

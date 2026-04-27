@@ -10,6 +10,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
+    "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "import-openings": "tsx scripts/import-openings.ts",
     "build-tree": "tsx scripts/build-opening-tree.ts",
@@ -19,7 +20,17 @@
     "fetch-shop-assets": "tsx scripts/fetch-shop-assets.ts",
     "cleanup-cosmetics": "tsx scripts/cleanup-missing-cosmetics.ts",
     "seed-all-openings": "tsx scripts/seed-all-openings.ts",
+    "seed:app": "tsx prisma/seed.ts",
+    "seed:shop": "tsx scripts/seed-shop.ts",
+    "seed:tournament": "tsx scripts/seed-tournament.ts",
+    "seed:openings": "tsx scripts/seed-all-openings.ts",
+    "seed:tree": "tsx scripts/build-opening-tree.ts",
+    "seed:puzzles": "tsx scripts/seed-puzzles.ts",
+    "seed:all": "npm run seed:shop && npm run seed:tournament && npm run seed:app && npm run seed:openings && npm run seed:tree && npm run seed:puzzles",
     "postinstall": "node scripts/copy-stockfish.js && prisma generate"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.38.1",

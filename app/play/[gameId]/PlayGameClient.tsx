@@ -374,7 +374,7 @@ export default function PlayGameClient({ gameId }: Props) {
             {reconnecting ? (
               <span className="flex items-center gap-1 text-yellow-400 text-xs"><WifiOff className="w-3 h-3" /> Reconnecting…</span>
             ) : connected ? (
-              <span className="flex items-center gap-1 text-green-400 text-xs"><Wifi className="w-3 h-3" /> Live</span>
+              <span className="flex items-center gap-1 text-pawn-gold text-xs"><Wifi className="w-3 h-3" /> Live</span>
             ) : null}
             <button onClick={() => router.push('/play')}
               className="bg-slate-700 hover:bg-slate-600 text-white font-bold h-9 px-3 rounded-lg transition-colors text-sm">
@@ -402,7 +402,7 @@ export default function PlayGameClient({ gameId }: Props) {
               <Handshake className="w-4 h-4" /> Opponent offers a draw
             </span>
             <div className="flex gap-2">
-              <button onClick={acceptDraw}  className="flex items-center gap-1.5 bg-green-700 hover:bg-green-600 text-white text-sm font-bold h-8 px-3 rounded-lg transition-colors"><Check className="w-3.5 h-3.5" /> Accept</button>
+              <button onClick={acceptDraw}  className="flex items-center gap-1.5 bg-pawn-gold hover:bg-pawn-gold-hover text-slate-900 text-sm font-extrabold h-8 px-3 rounded-lg transition-colors"><Check className="w-3.5 h-3.5" /> Accept</button>
               <button onClick={declineDraw} className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold h-8 px-3 rounded-lg transition-colors"><X className="w-3.5 h-3.5" /> Decline</button>
             </div>
           </div>

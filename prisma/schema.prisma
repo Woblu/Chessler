@@ -8,6 +8,9 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // For Prisma CLI (migrations/db push), prefer a direct connection.
+  // In production/serverless, DATABASE_URL can point at a pooler (PgBouncer).
+  directUrl = env("DIRECT_URL")
   // Supabase (free): use pooler URL (port 6543) + ?sslmode=require — see docs/SUPABASE-SETUP.md
 }
 
