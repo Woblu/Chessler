@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { auth, currentUser } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 const USER_SELECT = {
   id: true,
   clerk_id: true,
@@ -17,6 +20,19 @@ const USER_SELECT = {
   volatility: true,
 } as const
 
+function prismaConnectionHint(code?: string) {
+  switch (code) {
+    case 'P1000':
+      return 'Database authentication failed (check user/password in DATABASE_URL).'
+    case 'P1001':
+      return "Can't reach database server (check host/port, networking, and sslmode=require)."
+    case 'P1017':
+      return 'Database connection closed unexpectedly.'
+    default:
+      return null
+  }
+}
+
 /**
  * GET /api/auth/me
  * Returns the current user's profile.
@@ -28,12 +44,23 @@ const USER_SELECT = {
  *  4. Otherwise            → create a brand-new row.
  */
 export async function GET() {
+  let userId: string | null = null
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await auth()
+    userId = authResult.userId
+  } catch (err) {
+    console.error('Error in /api/auth/me (auth):', err)
+    return NextResponse.json(
+      { error: 'Could not verify session', detail: process.env.NODE_ENV === 'development' ? (err instanceof Error ? err.message : String(err)) : undefined },
+      { status: 503 }
+    )
+  }
 
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
     // 1. Fast path — already linked
     let user = await prisma.user.findUnique({
       where: { clerk_id: userId },
@@ -160,6 +187,25 @@ export async function GET() {
     return NextResponse.json({ user })
   } catch (error) {
     console.error('Error in /api/auth/me:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const message = error instanceof Error ? error.message : String(error)
+    const code = error && typeof (error as { code?: string }).code === 'string' ? (error as { code: string }).code : undefined
+    const hint = prismaConnectionHint(code)
+    if (hint) {
+      return NextResponse.json(
+        {
+          error: 'Database unavailable',
+          ...(process.env.NODE_ENV === 'development' && { detail: message, code, hint }),
+        },
+        { status: 503 }
+      )
+    }
+
+    return NextResponse.json(
+      {
+        error: 'Internal server error',
+        ...(process.env.NODE_ENV === 'development' && { detail: message, code }),
+      },
+      { status: 500 }
+    )
   }
 }

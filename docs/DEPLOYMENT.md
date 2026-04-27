@@ -52,7 +52,7 @@ Clerk’s dashboard should have your production domain in “Allowed origins” 
 ### 3. Database
 
 - Run migrations (or `prisma db push`) against the production DB before first deploy.
-- Use a managed PostgreSQL (e.g. Neon, Supabase, Railway, RDS).
+- Use a managed PostgreSQL. **Free option:** [Supabase](https://supabase.com) (see **docs/SUPABASE-SETUP.md**). Other options: Neon, Railway, RDS.
 
 ### 4. Hosting platforms that work well
 

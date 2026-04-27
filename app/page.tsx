@@ -40,7 +40,7 @@ interface Cosmetic {
 export default function HomePage() {
   const { isSignedIn } = useUser()
   const { signOut } = useClerk()
-  const { dbUser, isUserLoading, loadError, refetchUser } = useDbUser()
+  const { dbUser, isUserLoading, loadError, loadErrorDetail, refetchUser } = useDbUser()
   const [boss, setBoss] = useState<Boss | null>(null)
   const [openings, setOpenings] = useState<Opening[]>([])
   const [puzzleTheme, setPuzzleTheme] = useState<PuzzleTheme | null>(null)
@@ -115,6 +115,11 @@ export default function HomePage() {
           <p className="text-slate-400 text-sm mb-6">
             Try again or sign out and sign back in to fix the issue.
           </p>
+          {loadErrorDetail && (
+            <p className="text-amber-200/90 text-xs mb-4 font-mono max-h-24 overflow-y-auto text-left">
+              {loadErrorDetail}
+            </p>
+          )}
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
               onClick={() => refetchUser()}

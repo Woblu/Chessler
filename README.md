@@ -31,7 +31,8 @@ A Next.js chess application with PostgreSQL (Prisma) featuring a comprehensive r
 
 2. **Set up environment variables:**
    - Copy `.env.example` to `.env`
-   - Update `DATABASE_URL` with your PostgreSQL connection string
+   - Update `DATABASE_URL` with your PostgreSQL connection string  
+   - **Free database:** See [docs/SUPABASE-SETUP.md](docs/SUPABASE-SETUP.md) for a free Supabase PostgreSQL setup.
 
 3. **Set up the database:**
    ```bash

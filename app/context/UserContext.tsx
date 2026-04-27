@@ -24,6 +24,8 @@ interface UserContextValue {
   isUserLoading: boolean
   /** True when Clerk is signed in but /api/auth/me failed (so we can show retry UI instead of landing). */
   loadError: boolean
+  /** When loadError is true, may contain error message from API (e.g. in development). */
+  loadErrorDetail: string | null
   /** Retry loading app user from /api/auth/me. */
   refetchUser: () => Promise<void>
 }
@@ -33,6 +35,7 @@ const UserContext = createContext<UserContextValue>({
   setDbUser: () => {},
   isUserLoading: true,
   loadError: false,
+  loadErrorDetail: null,
   refetchUser: async () => {},
 })
 
@@ -41,18 +44,22 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [dbUser, setDbUser] = useState<DbUser | null>(null)
   const [isUserLoading, setIsUserLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  const [loadErrorDetail, setLoadErrorDetail] = useState<string | null>(null)
   const hasFetched = useRef(false)
 
   const fetchMe = useCallback(async () => {
     setLoadError(false)
+    setLoadErrorDetail(null)
     const r = await fetch('/api/auth/me')
-    const data = r.ok ? await r.json() : null
+    const data = await r.json().catch(() => ({}))
     if (data?.user) {
       setDbUser(data.user)
       setLoadError(false)
+      setLoadErrorDetail(null)
     } else {
       setDbUser(null)
       setLoadError(true)
+      setLoadErrorDetail(data?.detail ?? data?.error ?? null)
     }
   }, [])
 
@@ -72,19 +79,25 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setIsUserLoading(true)
       setLoadError(false)
       fetch('/api/auth/me')
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
-          if (data?.user) {
+        .then(async (r) => {
+          const data = await r.json().catch(() => ({}))
+          return { ok: r.ok, data }
+        })
+        .then(({ ok, data }) => {
+          if (ok && data?.user) {
             setDbUser(data.user)
             setLoadError(false)
+            setLoadErrorDetail(null)
           } else {
             setDbUser(null)
             setLoadError(true)
+            setLoadErrorDetail(data?.detail ?? data?.error ?? null)
           }
         })
         .catch(() => {
           setDbUser(null)
           setLoadError(true)
+          setLoadErrorDetail(null)
         })
         .finally(() => setIsUserLoading(false))
     }
@@ -98,7 +111,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [isSignedIn, fetchMe])
 
   return (
-    <UserContext.Provider value={{ dbUser, setDbUser, isUserLoading, loadError, refetchUser }}>
+    <UserContext.Provider value={{ dbUser, setDbUser, isUserLoading, loadError, loadErrorDetail, refetchUser }}>
       {children}
     </UserContext.Provider>
   )
