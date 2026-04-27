@@ -73,11 +73,11 @@ export default function Navbar() {
 
   return (
     <nav className="bg-slate-950 border-b border-chess-border sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="w-full px-4 sm:px-6 lg:px-10">
         <div className="flex justify-between items-center h-14 sm:h-16">
 
           {/* ── Left: Logo + desktop links ──────────────────────────────── */}
-          <div className="flex items-center gap-4 sm:gap-6">
+          <div className="flex items-center gap-4 sm:gap-6 min-w-0 flex-1">
             <Link href="/" className="flex items-center gap-2 shrink-0">
               <Image src="/rooklysmall.png" alt="Checkmate" width={32} height={32} className="w-7 h-7 sm:w-8 sm:h-8 object-contain" priority />
               <span className="font-bold text-lg sm:text-xl">
@@ -87,7 +87,7 @@ export default function Navbar() {
             </Link>
 
             {/* Desktop links (no Settings — that's a gear on the right) */}
-            <div className="hidden lg:flex items-center gap-0.5 min-w-0 max-w-[62vw] overflow-x-auto">
+            <div className="hidden lg:flex items-center gap-0.5 min-w-0 flex-1">
               <Link href="/"
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                   isActive('/') && pathname === '/' ? 'bg-pawn-gold text-slate-900' : 'text-slate-300 hover:bg-chess-card hover:text-white'
@@ -102,7 +102,7 @@ export default function Navbar() {
                   }`}
                 >
                   <Icon className={`${iconClassName} shrink-0`} />
-                  <span className="hidden xl:inline">{label}</span>
+                  <span>{label}</span>
                 </Link>
               ))}
             </div>
