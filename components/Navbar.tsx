@@ -20,14 +20,14 @@ import { useDbUser } from '@/app/context/UserContext'
 import RankAvatar from '@/components/RankAvatar'
 
 const NAV_LINKS = [
-  { href: '/profile',     label: 'Profile',     Icon: GiVisoredHelm },
-  { href: '/play',        label: 'Play',        Icon: GiCrossedSwords },
-  { href: '/learn',       label: 'Learn',       Icon: GiBookCover },
-  { href: '/shop',        label: 'Shop',        Icon: GiOpenTreasureChest },
-  { href: '/campaign',    label: 'Campaign',    Icon: GiWorld },
-  { href: '/puzzles',     label: 'Puzzles',     Icon: GiPuzzle },
-  { href: '/leaderboard', label: 'Leaderboard', Icon: Trophy },
-  { href: '/settings',    label: 'Settings',    Icon: HiCog },
+  { href: '/profile',     label: 'Profile',     Icon: GiVisoredHelm,        iconClassName: 'text-[18px]' },
+  { href: '/play',        label: 'Play',        Icon: GiCrossedSwords,      iconClassName: 'text-[18px]' },
+  { href: '/learn',       label: 'Learn',       Icon: GiBookCover,          iconClassName: 'text-[18px]' },
+  { href: '/shop',        label: 'Shop',        Icon: GiOpenTreasureChest,  iconClassName: 'text-[18px]' },
+  { href: '/campaign',    label: 'Campaign',    Icon: GiWorld,              iconClassName: 'text-[18px]' },
+  { href: '/puzzles',     label: 'Puzzles',     Icon: GiPuzzle,             iconClassName: 'text-[18px]' },
+  { href: '/leaderboard', label: 'Leaderboard', Icon: Trophy,               iconClassName: 'w-[18px] h-[18px]' },
+  { href: '/settings',    label: 'Settings',    Icon: HiCog,                iconClassName: 'text-[18px]' },
 ] as const
 
 // Desktop bar shows everything except Settings (Settings is a gear icon on the right)
@@ -87,7 +87,7 @@ export default function Navbar() {
             </Link>
 
             {/* Desktop links (no Settings — that's a gear on the right) */}
-            <div className="hidden lg:flex items-center gap-0.5">
+            <div className="hidden lg:flex items-center gap-0.5 min-w-0 max-w-[62vw] overflow-x-auto">
               <Link href="/"
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                   isActive('/') && pathname === '/' ? 'bg-pawn-gold text-slate-900' : 'text-slate-300 hover:bg-chess-card hover:text-white'
@@ -95,14 +95,14 @@ export default function Navbar() {
               >
                 Home
               </Link>
-              {dbUser && DESKTOP_NAV_LINKS.map(({ href, label, Icon }) => (
+              {dbUser && DESKTOP_NAV_LINKS.map(({ href, label, Icon, iconClassName }) => (
                 <Link key={href} href={href}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                  className={`shrink-0 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
                     isActive(href) ? 'bg-pawn-gold text-slate-900' : 'text-slate-300 hover:bg-chess-card hover:text-white'
                   }`}
                 >
-                  <Icon className="text-base" />
-                  {label}
+                  <Icon className={`${iconClassName} shrink-0`} />
+                  <span className="hidden xl:inline">{label}</span>
                 </Link>
               ))}
             </div>
@@ -121,7 +121,7 @@ export default function Navbar() {
                   title="Settings"
                   aria-label="Settings"
                 >
-                  <HiCog className="text-xl" />
+                  <HiCog className="text-[20px]" />
                 </Link>
 
                 {/* Pawns pill */}
@@ -182,7 +182,7 @@ export default function Navbar() {
                 className="lg:hidden flex items-center justify-center w-10 h-10 rounded-lg bg-chess-card border border-chess-border text-slate-300 hover:text-white transition-colors"
                 aria-label="Toggle menu"
               >
-                {mobileOpen ? <HiX className="text-xl" /> : <HiMenuAlt3 className="text-xl" />}
+                {mobileOpen ? <HiX className="text-[22px]" /> : <HiMenuAlt3 className="text-[22px]" />}
               </button>
             )}
           </div>
@@ -207,13 +207,13 @@ export default function Navbar() {
 
           {/* Nav links */}
           <div className="space-y-1">
-            {NAV_LINKS.map(({ href, label, Icon }) => (
+            {NAV_LINKS.map(({ href, label, Icon, iconClassName }) => (
               <Link key={href} href={href}
                 className={`flex items-center gap-3 px-3 h-12 rounded-xl text-sm font-medium transition-colors ${
                   isActive(href) ? 'bg-pawn-gold text-slate-900' : 'text-slate-300 hover:bg-chess-card hover:text-white'
                 }`}
               >
-                <Icon className="text-lg shrink-0" />
+                <Icon className={`${iconClassName} shrink-0`} />
                 {label}
               </Link>
             ))}
